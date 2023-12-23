@@ -1,8 +1,10 @@
+---
 title: My Video Podcast
-description: A podcast with video episodes.
-author: Viktor Petersson
+description: A podcast about various topics.
 language: en-us
-image: http://example.com/podcast-image.jpg
+link: http://example.com/podcast
+itunes_author: John Doe
+itunes_email: hello@example.com
+itunes_image: http://example.com/images/podcast-cover.jpg
 itunes_category: Technology
-itunes_explicit: no
-
+itunes_explicit: false
