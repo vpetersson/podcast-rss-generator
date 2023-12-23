@@ -1,7 +1,10 @@
 # Python RSS Generator
 
+[![Python Unit Tests and Linting](https://github.com/vpetersson/podcast-rss-generator/actions/workflows/python-tests.yml/badge.svg)](https://github.com/vpetersson/podcast-rss-generator/actions/workflows/python-tests.yml)
+
 ## Description
-This Python RSS Feed Generator is designed to generate an RSS feed for video podcasts, reading metadata from a YAML file and video details from a CSV file.
+
+This an RSS Feed Generator is designed to generate an RSS feed for video podcasts, reading metadata from a YAML file and video details from a CSV file.
 
 It assumes that you self-host your video episodes somewhere (e.g. S3/GCS) as well as the output of this script. You can then point YouTube/Spotify/Apple Podcast to this path.
 
@@ -17,6 +20,7 @@ It assumes that you self-host your video episodes somewhere (e.g. S3/GCS) as wel
 ## Installation
 
 ### Prerequisites
+
 - Python 3.8 or higher
 - pip (Python package installer)
 
@@ -57,7 +61,7 @@ This command will generate an RSS feed in XML format.
 To run unit tests, use:
 
 ```bash
-python -m unittest discover tests
+$ python -m unittest discover tests
 ```
 
 ## Contributing
