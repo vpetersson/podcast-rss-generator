@@ -31,7 +31,7 @@ def generate_rss(metadata, video_data):
     ET.SubElement(channel, "title").text = metadata['title']
     ET.SubElement(channel, "description").text = metadata['description']
     ET.SubElement(channel, "language").text = metadata.get('language', 'en-us')
-    ET.SubElement(channel, "generator").text = "Python RSS Generator Script"
+    ET.SubElement(channel, "generator").text = "Podcast RSS Generator (https://github.com/vpetersson/podcast-rss-generator)"
     ET.SubElement(channel, "itunes:author").text = metadata['author']
     ET.SubElement(channel, "itunes:explicit").text = metadata.get('itunes_explicit', 'no')
 
