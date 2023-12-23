@@ -3,6 +3,7 @@ from generator import iso_to_rfc2822, read_metadata, read_video_data, generate_r
 from xml.etree import ElementTree as ET
 import os
 
+
 class TestRSSGenerator(unittest.TestCase):
 
     def test_read_metadata(self):
@@ -12,7 +13,9 @@ class TestRSSGenerator(unittest.TestCase):
 
     def test_read_video_data(self):
         video_data = read_video_data('videos.csv.example')
-        self.assertEqual(len(video_data), 2)  # Assuming there are 2 entries in the test CSV
+
+        # Assuming there are 2 entries in the test CSV
+        self.assertEqual(len(video_data), 2)
         self.assertEqual(video_data[0]['title'], 'Video Podcast Episode 1')
 
     def test_date_conversion(self):
@@ -33,6 +36,6 @@ class TestRSSGenerator(unittest.TestCase):
         if os.path.exists('podcast_feed.xml'):
             os.remove('podcast_feed.xml')
 
+
 if __name__ == '__main__':
     unittest.main()
-
