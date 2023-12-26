@@ -17,14 +17,22 @@ def convert_iso_to_rfc2822(iso_date):
     return format_datetime(date_obj)
 
 
-def get_file_size(url):
+def get_file_info(url):
     response = requests.head(url, allow_redirects=True)
-    return response.headers.get("content-length", 0)
+    return {
+        "content-length": response.headers.get("content-length"),
+        "content-type": response.headers.get("content-type"),
+    }
 
 
 def generate_rss(config, output_file_path):
     ET.register_namespace("itunes", "http://www.itunes.com/dtds/podcast-1.0.dtd")
     ET.register_namespace("atom", "http://www.w3.org/2005/Atom")
+
+    # Global itunes:explicit setting
+    global_explicit = (
+        "yes" if config["metadata"].get("itunes_explicit", False) else "no"
+    )
 
     rss = ET.Element(
         "rss",
@@ -56,7 +64,7 @@ def generate_rss(config, output_file_path):
 
     # Adds explicit tag
     itunes_explicit = ET.SubElement(channel, "itunes:explicit")
-    itunes_explicit.text = "yes" if metadata.get("itunes_explicit") else "no"
+    itunes_explicit.text = global_explicit
 
     # Add itunes:owner and itunes:email tags
     itunes_owner = ET.SubElement(channel, "itunes:owner")
@@ -80,14 +88,23 @@ def generate_rss(config, output_file_path):
 
     # Episodes
     for episode in config["episodes"]:
+        file_info = get_file_info(episode["link"])
         item = ET.SubElement(channel, "item")
         ET.SubElement(item, "title").text = episode["title"]
         ET.SubElement(item, "description").text = episode["description"]
         ET.SubElement(item, "pubDate").text = episode["pubDate"]
+        ET.SubElement(item, "guid").text = episode["link"]
+        ET.SubElement(
+            item,
+            "enclosure",
+            url=episode["link"],
+            type=file_info["content-type"],
+            length=str(file_info["content-length"]),
+        )
 
-        # The 'enclosure' element has been intentionally removed as
-        # it requires more work to support both video and audio.
-        # ET.SubElement(item, "enclosure", url=episode["link"], type="audio/mpeg", length=str(video["file_size"]))
+        # Apply global itunes:explicit setting to each episode
+        itunes_explicit = ET.SubElement(item, "itunes:explicit")
+        itunes_explicit.text = global_explicit
 
     tree = ET.ElementTree(rss)
     tree.write(output_file_path, encoding="UTF-8", xml_declaration=True)

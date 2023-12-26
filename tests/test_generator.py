@@ -2,8 +2,7 @@ import os
 import unittest
 from xml.etree import ElementTree as ET
 
-from rss_generator import (convert_iso_to_rfc2822, generate_rss,
-                           read_podcast_config)
+from rss_generator import convert_iso_to_rfc2822, generate_rss, read_podcast_config
 
 CONFIG_FILE = "podcast_config.example.yaml"
 
