@@ -50,15 +50,23 @@ $ pip install -r requirements.txt
 
 2. **Generate the RSS Feed**
 
+Make sure your YAML is valid:
+
+```bash
+$ yamllint podcast_config.yaml
+```
+
+Generate your `podcast_feed.xml` file:
+
 ```bash
 $ python rss_generator.py
 ```
 
-This command will generate an RSS feed in XML format.
+(You might also want to install `xq` (which is like `jq`, but for XML) for easier local debugging of `podcast_feed.xml`.)
 
-You can verify your RSS feed using a tool like [Podbase](https://podba.se/validate/).
+Now copy your `podcast_feed.xml` to S3/GCS/R2 using a tool like `s3cmd`, `aws` or `mc` (from Minio).
 
-You might also want to install `xq` (which is like `jq`, but for XML) for easier local debugging.
+Optional: You can verify your RSS feed using a tool like [Podbase](https://podba.se/validate/).
 
 ## Running Tests
 
@@ -78,4 +86,5 @@ Contributions to this project are welcome! Please follow these steps:
 5. Submit a pull request.
 
 ## License
+
 [MIT License](LICENSE)

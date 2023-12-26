@@ -160,6 +160,5 @@ cython_debug/
 #.idea/
 
 # Exclude output from script
-metadata.yaml
-videos.csv
+podcast_config.yaml
 podcast_feed.xml
