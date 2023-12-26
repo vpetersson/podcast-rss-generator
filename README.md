@@ -39,7 +39,7 @@ $ cd podcast-rss-generator
 $ pip install -r requirements.txt
 ```
 
-*Note: Ensure your `requirements.txt` file includes all necessary packages like `pyyaml` and `flake8`.*
+*Optional: Install `yamllint` and `flake8`.*
 
 ## Usage
 
