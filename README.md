@@ -58,7 +58,7 @@ This command will generate an RSS feed in XML format.
 
 You can verify your RSS feed using a tool like [Podbase](https://podba.se/validate/).
 
-You might also qant to install `xq` (which is like `jq`, but for XML) for easier local debugging.
+You might also want to install `xq` (which is like `jq`, but for XML) for easier local debugging.
 
 ## Running Tests
 

@@ -18,16 +18,16 @@ class TestRSSGenerator(unittest.TestCase):
         self.assertTrue(rfc_date.startswith('Wed, 01 Feb 2023 10:00:00'))
 
     def test_rss_generation(self):
-        config = read_podcast_config(CONFIG_FILE')
+        config = read_podcast_config(CONFIG_FILE)
         generate_rss(config, 'test_podcast_feed.xml')
-        self.assertTrue(os.path.exists('podcast_feed.example.xml'))
+        self.assertTrue(os.path.exists('test_podcast_feed.xml'))
         tree = ET.parse('test_podcast_feed.xml')
         root = tree.getroot()
         self.assertEqual(root.tag, 'rss')
         self.assertEqual(root.find('./channel/title').text, config['metadata']['title'])
 
     def tearDown(self):
-        if os.path.exists('podcast_feed.xml'):
+        if os.path.exists('test_podcast_feed.xml'):
             os.remove('test_podcast_feed.xml')
 
 
