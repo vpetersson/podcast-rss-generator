@@ -1,9 +1,10 @@
-import xml.etree.ElementTree as ET
-import yaml
 import csv
-import requests
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import format_datetime
+
+import requests
+import yaml
 
 
 def read_podcast_config(yaml_file_path):
