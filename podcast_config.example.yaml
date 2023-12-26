@@ -1,0 +1,21 @@
+---
+metadata:
+  title: My Video Podcast
+  description: A podcast about various topics.
+  language: en-us
+  link: http://example.com/podcast
+  itunes_image: http://example.com/images/podcast-cover.jpg
+  itunes_category: Technology
+  itunes_explicit: false
+  itunes_author: Author Name
+  itunes_email: contact@example.com
+
+episodes:
+  - title: "Episode 1"
+    description: "This is the first episode."
+    pubDate: "2023-02-01T10:00:00"
+    link: "http://example.com/media/episode1.mp4"
+  - title: "Episode 2"
+    description: "This is the second episode."
+    pubDate: "2023-02-08T11:00:00"
+    link: "http://example.com/media/episode2.mp4"

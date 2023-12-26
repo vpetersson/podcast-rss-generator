@@ -1,33 +1,33 @@
 import unittest
-from unittest.mock import patch
-from rss_generator import read_metadata, read_video_data, convert_iso_to_rfc2822, generate_rss
+from rss_generator import read_podcast_config, convert_iso_to_rfc2822, generate_rss
 import os
+from xml.etree import ElementTree as ET
 
+CONFIG_FILE='podcast_config.example.yaml'
 
 class TestRSSGenerator(unittest.TestCase):
 
-    def test_read_metadata(self):
-        metadata = read_metadata('metadata.yaml.example')
-        self.assertEqual(metadata['title'], 'My Video Podcast')
-
-    def test_read_video_data(self):
-        video_data = read_video_data('videos.csv.example')
-        self.assertEqual(len(video_data), 2)
-        self.assertEqual(video_data[0]['title'], 'Episode 1')
+    def test_read_podcast_config(self):
+        config = read_podcast_config(CONFIG_FILE)
+        self.assertIn('metadata', config)
+        self.assertIn('episodes', config)
+        self.assertEqual(config['metadata']['title'], 'My Video Podcast')
 
     def test_date_conversion(self):
         rfc_date = convert_iso_to_rfc2822('2023-02-01T10:00:00')
         self.assertTrue(rfc_date.startswith('Wed, 01 Feb 2023 10:00:00'))
 
     def test_rss_generation(self):
-        metadata = read_metadata('metadata.yaml.example')
-        video_data = read_video_data('videos.csv.example')
-        generate_rss(metadata, video_data, 'test_podcast_feed.xml')
-        self.assertTrue(os.path.exists('test_podcast_feed.xml'))
-        # Additional tests can be added here to check the structure and content of the generated RSS feed
+        config = read_podcast_config(CONFIG_FILE')
+        generate_rss(config, 'test_podcast_feed.xml')
+        self.assertTrue(os.path.exists('podcast_feed.example.xml'))
+        tree = ET.parse('test_podcast_feed.xml')
+        root = tree.getroot()
+        self.assertEqual(root.tag, 'rss')
+        self.assertEqual(root.find('./channel/title').text, config['metadata']['title'])
 
     def tearDown(self):
-        if os.path.exists('test_podcast_feed.xml'):
+        if os.path.exists('podcast_feed.xml'):
             os.remove('test_podcast_feed.xml')
 
 

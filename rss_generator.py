@@ -6,20 +6,9 @@ from datetime import datetime
 from email.utils import format_datetime
 
 
-def read_metadata(yaml_file_path):
+def read_podcast_config(yaml_file_path):
     with open(yaml_file_path, 'r', encoding='utf-8') as file:
         return yaml.safe_load(file)
-
-
-def read_video_data(csv_file_path):
-    videos = []
-    with open(csv_file_path, newline='', encoding='utf-8') as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            row["pubDate"] = convert_iso_to_rfc2822(row["pubDate"])
-            row["file_size"] = get_file_size(row["link"])
-            videos.append(row)
-    return videos
 
 
 def convert_iso_to_rfc2822(iso_date):
@@ -32,13 +21,15 @@ def get_file_size(url):
     return response.headers.get('content-length', 0)
 
 
-def generate_rss(metadata, video_data, output_file_path):
+def generate_rss(config, output_file_path):
     ET.register_namespace('itunes', "http://www.itunes.com/dtds/podcast-1.0.dtd")
     ET.register_namespace('atom', "http://www.w3.org/2005/Atom")
 
     rss = ET.Element("rss", version="2.0", attrib={"xmlns:itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd",
                                                    "xmlns:atom": "http://www.w3.org/2005/Atom"})
+    # Metadata
     channel = ET.SubElement(rss, "channel")
+    metadata = config['metadata']
     ET.SubElement(channel, "title").text = metadata['title']
     ET.SubElement(channel, "description").text = metadata['description']
     ET.SubElement(channel, "language").text = metadata.get('language', 'en-us')
@@ -70,24 +61,24 @@ def generate_rss(metadata, video_data, output_file_path):
         itunes_image = ET.SubElement(channel, "itunes:image")
         itunes_image.set('href', metadata['itunes_image'])
 
-    for video in video_data:
+    # Episodes
+    for episode in config['episodes']:
         item = ET.SubElement(channel, "item")
-        ET.SubElement(item, "title").text = video["title"]
-        ET.SubElement(item, "description").text = video["description"]
-        ET.SubElement(item, "pubDate").text = video["pubDate"]
+        ET.SubElement(item, "title").text = episode["title"]
+        ET.SubElement(item, "description").text = episode["description"]
+        ET.SubElement(item, "pubDate").text = episode["pubDate"]
 
         # The 'enclosure' element has been intentionally removed as
         # it requires more work to support both video and audio.
-        # ET.SubElement(item, "enclosure", url=video["link"], type="audio/mpeg", length=str(video["file_size"]))
+        # ET.SubElement(item, "enclosure", url=episode["link"], type="audio/mpeg", length=str(video["file_size"]))
 
     tree = ET.ElementTree(rss)
     tree.write(output_file_path, encoding="UTF-8", xml_declaration=True)
 
 
 def main():
-    metadata = read_metadata('metadata.yaml')
-    video_data = read_video_data('videos.csv')
-    generate_rss(metadata, video_data, 'podcast_feed.xml')
+    config = read_podcast_config('podcast_config.yaml')
+    generate_rss(config, 'podcast_feed.xml')
 
 
 if __name__ == "__main__":
