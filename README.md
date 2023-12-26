@@ -45,8 +45,7 @@ $ pip install -r requirements.txt
 
 1. **Prepare Your Data Files**
 
-- Copy `metadata.yaml.example` to `metadata.yaml` and fill out your podcast metadata.
-- Copy `videos.csv.example` to `videos.csv` file and popuylate it with your podcast episodes.
+- Copy `podcast_config.example.yaml` to `podcast_config.yaml` and fill out your podcast metadata and eepisodes.
 
 2. **Generate the RSS Feed**
 
