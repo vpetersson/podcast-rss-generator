@@ -92,7 +92,7 @@ def generate_rss(config, output_file_path):
         item = ET.SubElement(channel, "item")
         ET.SubElement(item, "title").text = episode["title"]
         ET.SubElement(item, "description").text = episode["description"]
-        ET.SubElement(item, "pubDate").text = episode["pubDate"]
+        ET.SubElement(item, "pubDate").text = episode["publication_date"]
         ET.SubElement(item, "guid").text = episode["link"]
         ET.SubElement(
             item,
@@ -105,6 +105,19 @@ def generate_rss(config, output_file_path):
         # Apply global itunes:explicit setting to each episode
         itunes_explicit = ET.SubElement(item, "itunes:explicit")
         itunes_explicit.text = global_explicit
+
+        # New iTunes-specific tags
+        if "episode" in episode:
+            itunes_episode = ET.SubElement(item, "itunes:episode")
+            itunes_episode.text = str(episode["episode"])
+
+        if "season" in episode:
+            itunes_season = ET.SubElement(item, "itunes:season")
+            itunes_season.text = str(episode["season"])
+
+        if "episode_type" in episode:
+            itunes_episode_type = ET.SubElement(item, "itunes:episodeType")
+            itunes_episode_type.text = episode["episode_type"]
 
     tree = ET.ElementTree(rss)
     tree.write(output_file_path, encoding="UTF-8", xml_declaration=True)

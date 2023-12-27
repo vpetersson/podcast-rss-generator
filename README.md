@@ -16,6 +16,7 @@ This tool was written for my podcast [Nerding Out with Viktor](https://blog.vikt
 - Reads podcast metadata from a YAML file
 - Extracts video details from a CSV file
 - Converts ISO format dates to RFC 2822 format
+- Attempts to follow [The Podcast RSS Standard](https://github.com/Podcast-Standards-Project/PSP-1-Podcast-RSS-Specification)
 
 ## Installation
 
