@@ -1,4 +1,3 @@
-import csv
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import format_datetime
@@ -88,14 +87,15 @@ def generate_rss(config, output_file_path):
 
     # Episodes
     for episode in config["episodes"]:
-
         # Don't pre-publish episodes
         if not datetime.fromisoformat(episode["publication_date"]) < datetime.utcnow():
             break
 
         file_info = get_file_info(episode["link"])
         item = ET.SubElement(channel, "item")
-        ET.SubElement(item, "pubDate").text = convert_iso_to_rfc2822(episode["publication_date"])
+        ET.SubElement(item, "pubDate").text = convert_iso_to_rfc2822(
+            episode["publication_date"]
+        )
         ET.SubElement(item, "title").text = episode["title"]
         ET.SubElement(item, "description").text = episode["description"]
         ET.SubElement(item, "guid").text = episode["link"]

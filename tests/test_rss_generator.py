@@ -2,9 +2,11 @@ import os
 import unittest
 from xml.etree import ElementTree as ET
 
-from rss_generator import convert_iso_to_rfc2822, generate_rss, read_podcast_config, get_file_info
+from rss_generator import (convert_iso_to_rfc2822, generate_rss, get_file_info,
+                           read_podcast_config)
 
 CONFIG_FILE = "podcast_config.example.yaml"
+
 
 class TestRSSGenerator(unittest.TestCase):
     @classmethod
@@ -15,7 +17,7 @@ class TestRSSGenerator(unittest.TestCase):
         cls.tree = ET.parse("test_podcast_feed.xml")
         cls.root = cls.tree.getroot()
         cls.channel = cls.root.find("channel")
-        cls.ns = {'itunes': 'http://www.itunes.com/dtds/podcast-1.0.dtd'}
+        cls.ns = {"itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd"}
 
     def test_config_structure(self):
         self.assertIn("metadata", self.config)
@@ -31,29 +33,48 @@ class TestRSSGenerator(unittest.TestCase):
             self.assertIsNotNone(self.channel.find(tag), f"Missing tag: {tag}")
 
     def test_itunes_tags_in_channel(self):
-        itunes_tags = ["itunes:explicit", "itunes:owner", "itunes:author", "itunes:image", "itunes:category"]
+        itunes_tags = [
+            "itunes:explicit",
+            "itunes:owner",
+            "itunes:author",
+            "itunes:image",
+            "itunes:category",
+        ]
         for tag in itunes_tags:
-            self.assertIsNotNone(self.channel.find(tag, self.ns), f"Missing iTunes tag in channel: {tag}")
+            self.assertIsNotNone(
+                self.channel.find(tag, self.ns), f"Missing iTunes tag in channel: {tag}"
+            )
 
     def test_episode_structure(self):
         for episode in self.config["episodes"]:
             title = episode["title"]
             item = self.channel.find(f"item[title='{title}']")
             self.assertIsNotNone(item, f"Missing item for episode: {title}")
-            self.assertIsNotNone(item.find("enclosure"), f"Missing enclosure tag for episode: {title}")
+            self.assertIsNotNone(
+                item.find("enclosure"), f"Missing enclosure tag for episode: {title}"
+            )
 
     def test_episode_itunes_tags(self):
         for item in self.channel.findall("item"):
             itunes_episode = item.find("itunes:episode", self.ns)
-            self.assertIsNotNone(itunes_episode, "Missing iTunes tag in episode: itunes:episode")
+            self.assertIsNotNone(
+                itunes_episode, "Missing iTunes tag in episode: itunes:episode"
+            )
 
             itunes_season = item.find("itunes:season", self.ns)
-            self.assertIsNotNone(itunes_season, "Missing iTunes tag in episode: itunes:season")
+            self.assertIsNotNone(
+                itunes_season, "Missing iTunes tag in episode: itunes:season"
+            )
 
             # Check for itunes:episodeType tag if it is supposed to be present in each episode
             itunes_episode_type = item.find("itunes:episodeType", self.ns)
-            if 'episodeType' in self.config['episodes']:  # Assuming 'episodeType' field is in your config for each episode
-                self.assertIsNotNone(itunes_episode_type, "Missing iTunes tag in episode: itunes:episodeType")
+            if (
+                "episodeType" in self.config["episodes"]
+            ):  # Assuming 'episodeType' field is in your config for each episode
+                self.assertIsNotNone(
+                    itunes_episode_type,
+                    "Missing iTunes tag in episode: itunes:episodeType",
+                )
 
     def test_date_conversion(self):
         test_date = "2023-02-01T10:00:00"
@@ -70,6 +91,7 @@ class TestRSSGenerator(unittest.TestCase):
     def tearDownClass(cls):
         if os.path.exists("test_podcast_feed.xml"):
             os.remove("test_podcast_feed.xml")
+
 
 if __name__ == "__main__":
     unittest.main()
