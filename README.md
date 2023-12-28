@@ -4,7 +4,7 @@
 
 ## Description
 
-This an RSS Feed Generator is designed to generate an RSS feed for audio/video podcasts, reading metadata from a YAML file and video details from a CSV file.
+This an RSS Feed Generator is designed to generate an RSS feed for audio/video podcasts, reading metadata and episode data from a YAML file.
 
 It assumes that you self-host your video episodes somewhere (e.g. S3/GCS/R2) as well as the output of this script. You can then point YouTube/Spotify/Apple Podcast to this path.
 
@@ -40,13 +40,13 @@ $ cd podcast-rss-generator
 $ pip install -r requirements.txt
 ```
 
-*Optional: Install `yamllint` and `flake8`.*
+**Optional:** Install `yamllint`, `xq` and `flake8`.
 
 ## Usage
 
 1. **Prepare Your Data Files**
 
-- Copy `podcast_config.example.yaml` to `podcast_config.yaml` and fill out your podcast metadata and eepisodes.
+Copy `podcast_config.example.yaml` to `podcast_config.yaml` and fill out your podcast metadata and eepisodes.
 
 2. **Generate the RSS Feed**
 
@@ -62,11 +62,9 @@ Generate your `podcast_feed.xml` file:
 $ python rss_generator.py
 ```
 
-(You might also want to install `xq` (which is like `jq`, but for XML) for easier local debugging of `podcast_feed.xml`.)
-
 Now copy your `podcast_feed.xml` to S3/GCS/R2 using a tool like `s3cmd`, `aws` or `mc` (from Minio).
 
-Optional: You can verify your RSS feed using a tool like [Podbase](https://podba.se/validate/).
+**Optional:** You can verify your RSS feed using a tool like [Podbase](https://podba.se/validate/).
 
 ## Running Tests
 

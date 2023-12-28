@@ -89,6 +89,7 @@ def generate_rss(config, output_file_path):
     for episode in config["episodes"]:
         # Don't pre-publish episodes
         if not datetime.fromisoformat(episode["publication_date"]) < datetime.utcnow():
+            print(f"Skipping episode {episode['title']} as it's not scheduled to be released until {episode['publication_data']}.")
             break
 
         file_info = get_file_info(episode["link"])
