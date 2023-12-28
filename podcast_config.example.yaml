@@ -3,6 +3,7 @@ metadata:
   title: My Video Podcast
   description: |
     A podcast about various topics. This block can be formatted using Markdown, with things like lists:
+
       * List item 1
       * List item 2
   language: en-us
