@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import format_datetime
 
+import markdown
 import requests
 import yaml
 
@@ -22,6 +23,23 @@ def get_file_info(url):
         "content-length": response.headers.get("content-length"),
         "content-type": response.headers.get("content-type"),
     }
+
+
+def format_description(description):
+    """
+    Convert Markdown description to HTML
+    """
+    html_description = markdown.markdown(description)
+    wrapped_description = f"<![CDATA[{html_description}]]>"
+
+    # Ensure byte limit for the channel description
+    byte_limit = 4000
+    if len(wrapped_description.encode("utf-8")) > byte_limit:
+        # Truncate the description if it exceeds the limit
+        # Note: Truncation logic might need to be more sophisticated to handle HTML correctly
+        wrapped_description = wrapped_description[:byte_limit]
+
+    return wrapped_description
 
 
 def generate_rss(config, output_file_path):
@@ -45,7 +63,9 @@ def generate_rss(config, output_file_path):
     channel = ET.SubElement(rss, "channel")
     metadata = config["metadata"]
     ET.SubElement(channel, "title").text = metadata["title"]
-    ET.SubElement(channel, "description").text = metadata["description"]
+    ET.SubElement(channel, "description").text = format_description(
+        metadata["description"]
+    )
     ET.SubElement(channel, "language").text = metadata.get("language", "en-us")
     ET.SubElement(channel, "link").text = metadata["link"]
     ET.SubElement(
@@ -87,10 +107,14 @@ def generate_rss(config, output_file_path):
 
     # Episodes
     for episode in config["episodes"]:
+        print(f"Processing episode {episode['title']}...")
+
         # Don't pre-publish episodes
         if not datetime.fromisoformat(episode["publication_date"]) < datetime.utcnow():
-            print(f"Skipping episode {episode['title']} as it's not scheduled to be released until {episode['publication_data']}.")
-            break
+            print(
+                f"Skipping episode {episode['title']} as it's not scheduled to be released until {episode['publication_date']}."
+            )
+            continue
 
         file_info = get_file_info(episode["link"])
         item = ET.SubElement(channel, "item")
@@ -98,7 +122,9 @@ def generate_rss(config, output_file_path):
             episode["publication_date"]
         )
         ET.SubElement(item, "title").text = episode["title"]
-        ET.SubElement(item, "description").text = episode["description"]
+        ET.SubElement(item, "description").text = format_description(
+            episode["description"]
+        )
         ET.SubElement(item, "guid").text = episode["link"]
         ET.SubElement(
             item,
