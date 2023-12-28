@@ -26,7 +26,9 @@ def get_file_info(url):
 
 
 def format_description(description):
-    # Convert Markdown description to HTML for the channel
+    """
+    Convert Markdown description to HTML
+    """
     html_description = markdown.markdown(description)
     wrapped_description = f"<![CDATA[{html_description}]]>"
 
