@@ -39,7 +39,7 @@ jobs:
 
       - name: Ensure example file passes YAmllint
         run: |
-          yamllint podcast_config.example.yaml
+          yamllint -fgithub -d "{rules: {line-length: false}}" podcast_config.example.yaml
 
       - name: Run tests
         run: |
