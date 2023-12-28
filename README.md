@@ -12,9 +12,8 @@ This tool was written for my podcast [Nerding Out with Viktor](https://blog.vikt
 
 ## Features
 
-- Generates RSS feed for video podcasts
-- Reads podcast metadata from a YAML file
-- Extracts video details from a CSV file
+- Generates RSS feed for audio/video podcasts
+- Reads podcast metadata and episode data from a YAML file
 - Converts ISO format dates to RFC 2822 format
 - Attempts to follow [The Podcast RSS Standard](https://github.com/Podcast-Standards-Project/PSP-1-Podcast-RSS-Specification)
 
