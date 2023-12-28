@@ -1,7 +1,10 @@
 ---
 metadata:
   title: My Video Podcast
-  description: A podcast about various topics.
+  description: |
+    A podcast about various topics. This block can be formatted using Markdown, with things like lists:
+      * List item 1
+      * List item 2
   language: en-us
   link: http://example.com/podcast
   itunes_image: http://example.com/images/podcast-cover.jpg
@@ -12,7 +15,7 @@ metadata:
 
 episodes:
   - title: "Episode 1"
-    description: "This is the first episode."
+    description: "This is the *first* episode. You can also include [links](https://foobar.com)."
     publication_date: "2023-02-01T10:00:00"
     link: "http://example.com/media/episode1.mp4"
     episode: 1
