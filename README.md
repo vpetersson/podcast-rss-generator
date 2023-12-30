@@ -23,6 +23,7 @@ This tool was written for my podcast [Nerding Out with Viktor](https://blog.vikt
 
 - Python 3.8 or higher
 - pip (Python package installer)
+- ffmpeg
 
 ### Setup
 

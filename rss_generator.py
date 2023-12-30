@@ -5,6 +5,7 @@ from email.utils import format_datetime
 import markdown
 import requests
 import yaml
+from sh import ffprobe
 
 
 def read_podcast_config(yaml_file_path):
@@ -19,9 +20,37 @@ def convert_iso_to_rfc2822(iso_date):
 
 def get_file_info(url):
     response = requests.head(url, allow_redirects=True)
+
+    # Get duration of audio/video file
+    # We're using the response.url here in order to
+    # follow redirects and get the actual file
+
+    probe = ffprobe(
+        "-hide_banner",
+        "-v",
+        "quiet",
+        "-show_streams",
+        "-print_format",
+        "flat",
+        response.url,
+    )
+    lines = probe.split("\n")
+
+    # Filtering out the line that contains 'streams.stream.0.duration'
+    duration_line = next(
+        (line for line in lines if line.startswith("streams.stream.0.duration=")), None
+    )
+
+    if duration_line:
+        # Extracting the numeric value and converting it to an integer
+        duration = int(float(duration_line.split("=")[1].strip('"')))
+    else:
+        duration = None
+
     return {
         "content-length": response.headers.get("content-length"),
         "content-type": response.headers.get("content-type"),
+        "duration": duration,
     }
 
 
@@ -93,7 +122,7 @@ def generate_rss(config, output_file_path):
     itunes_author = ET.SubElement(channel, "itunes:author")
     itunes_author.text = metadata["itunes_author"]
 
-    # Duplicate descrion to itunes summary
+    # Duplicate description to itunes summary
     itunes_summary = ET.SubElement(channel, "itunes:summary")
     itunes_summary.text = metadata["description"]
 
@@ -137,6 +166,10 @@ def generate_rss(config, output_file_path):
         # Apply global itunes:explicit setting to each episode
         itunes_explicit = ET.SubElement(item, "itunes:explicit")
         itunes_explicit.text = global_explicit
+
+        # Add itunes:duration tag
+        itunes_duration = ET.SubElement(item, "itunes:duration")
+        itunes_duration.text = str(file_info["duration"])
 
         # New iTunes-specific tags
         if "episode" in episode:
