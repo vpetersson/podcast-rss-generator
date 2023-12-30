@@ -83,7 +83,7 @@ class TestRSSGenerator(unittest.TestCase):
 
     def test_file_info_retrieval(self):
         for episode in self.config["episodes"]:
-            file_info = get_file_info(episode["link"])
+            file_info = get_file_info(episode["asset_url"])
             self.assertIsInstance(file_info["content-length"], str)
             self.assertIsInstance(file_info["content-type"], str)
 

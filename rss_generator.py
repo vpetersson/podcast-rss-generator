@@ -145,7 +145,7 @@ def generate_rss(config, output_file_path):
             )
             continue
 
-        file_info = get_file_info(episode["link"])
+        file_info = get_file_info(episode["asset_url"])
         item = ET.SubElement(channel, "item")
         ET.SubElement(item, "pubDate").text = convert_iso_to_rfc2822(
             episode["publication_date"]
@@ -154,11 +154,11 @@ def generate_rss(config, output_file_path):
         ET.SubElement(item, "description").text = format_description(
             episode["description"]
         )
-        ET.SubElement(item, "guid").text = episode["link"]
+        ET.SubElement(item, "guid").text = episode["asset_url"]
         ET.SubElement(
             item,
             "enclosure",
-            url=episode["link"],
+            url=episode["asset_url"],
             type=file_info["content-type"],
             length=str(file_info["content-length"]),
         )
@@ -171,18 +171,29 @@ def generate_rss(config, output_file_path):
         itunes_duration = ET.SubElement(item, "itunes:duration")
         itunes_duration.text = str(file_info["duration"])
 
-        # New iTunes-specific tags
-        if "episode" in episode:
+        # iTunes-specific tags
+        if episode.get("episode") is not None:
             itunes_episode = ET.SubElement(item, "itunes:episode")
             itunes_episode.text = str(episode["episode"])
 
-        if "season" in episode:
+        if episode.get("season") is not None:
             itunes_season = ET.SubElement(item, "itunes:season")
             itunes_season.text = str(episode["season"])
 
-        if "episode_type" in episode:
+        if episode.get("episode_type") is not None:
             itunes_episode_type = ET.SubElement(item, "itunes:episodeType")
             itunes_episode_type.text = episode["episode_type"]
+
+        # Add link if available, if not, use global
+        link = ET.SubElement(item, "link")
+        link.text = episode.get("link", metadata["link"])
+
+        # Use episode specific artwork if available
+        itunes_image_url = episode.get("itunes_image", metadata["itunes_image"])
+
+        # Creating the 'itunes:image' element with the determined URL
+        itunes_image = ET.SubElement(item, "itunes:image")
+        itunes_image.set("href", itunes_image_url)
 
     tree = ET.ElementTree(rss)
     tree.write(output_file_path, encoding="UTF-8", xml_declaration=True)
