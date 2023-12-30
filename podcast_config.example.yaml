@@ -13,19 +13,20 @@ metadata:
   itunes_explicit: false
   itunes_author: Author Name
   itunes_email: contact@example.com
+  rss_feed_url: https://example.com/podcast_feed.xml
 
 episodes:
   - title: "Episode 1"
     description: "This is the *first* episode. You can also include [links](https://foobar.com)."
     publication_date: "2023-02-01T10:00:00"
-    link: "http://example.com/media/episode1.mp4"
+    link: "https://assets.allsamplefiles.com/mp4/ns/60s/sample-file-quad-hd.mp4"
     episode: 1
     season: 1
     episode_type: "trailer"
   - title: "Episode 2"
     description: "This is the second episode."
     publication_date: "2023-02-08T11:00:00"
-    link: "http://example.com/media/episode2.mp4"
+    link: "https://assets.allsamplefiles.com/mp4/ns/60s/sample-file-hd.mp4"
     episode: 2
     season: 1
     episode_type: "full"

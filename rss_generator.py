@@ -105,7 +105,7 @@ def generate_rss(config, output_file_path):
     ET.SubElement(
         channel,
         "atom:link",
-        href=output_file_path,
+        href=metadata["rss_feed_url"],
         rel="self",
         type="application/rss+xml",
     )
