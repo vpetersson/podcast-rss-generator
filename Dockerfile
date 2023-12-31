@@ -2,7 +2,7 @@ FROM python:3.9-slim
 
 # Install ffmpeg and yamllint
 RUN apt-get update && \
-    apt-get install -y ffmpeg yamllint && \
+    apt-get install -y ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy your script and requirements file
