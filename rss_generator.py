@@ -1,8 +1,7 @@
-import argparse
-import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import format_datetime
+import argparse
 
 import markdown
 import requests
