@@ -1,6 +1,8 @@
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import format_datetime
+import argparse
+import sys
 
 import markdown
 import requests
@@ -200,8 +202,22 @@ def generate_rss(config, output_file_path):
 
 
 def main():
-    config = read_podcast_config("podcast_config.yaml")
-    generate_rss(config, "podcast_feed.xml")
+    parser = argparse.ArgumentParser(description="Process some parameters.")
+
+    parser.add_argument(
+        "--input-file", type=str, default="podcast_config.yaml", help="Input YAML file"
+    )
+    parser.add_argument(
+        "--output-file", type=str, default="podcast_feed.xml", help="Output XML file"
+    )
+
+    # Parse arguments from the command line
+    args = parser.parse_args()
+
+    print(f"Input file: {args.input_file}, Output file: {args.output_file}")
+
+    config = read_podcast_config(args.input_file)
+    generate_rss(config, args.output_file)
 
 
 if __name__ == "__main__":
