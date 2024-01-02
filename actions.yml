@@ -1,0 +1,22 @@
+name: 'Podcast RSS Generator'
+description: 'Generates a podcast RSS feed from a YAML configuration'
+author: 'Your Name'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - "--input-file"
+    - ${{ inputs.input_file }}
+    - "--output-file"
+    - ${{ inputs.output_file }}
+
+inputs:
+  input_file:
+    description: 'Input YAML file'
+    required: true
+    default: '/workspace/podcast_config.yaml'
+  output_file:
+    description: 'Output XML file'
+    required: true
+    default: '/workspace/podcast_feed.xml'
