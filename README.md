@@ -17,6 +17,13 @@ This tool was written for my podcast [Nerding Out with Viktor](https://blog.vikt
 - Converts ISO format dates to RFC 2822 format
 - Attempts to follow [The Podcast RSS Standard](https://github.com/Podcast-Standards-Project/PSP-1-Podcast-RSS-Specification)
 
+## Known Issues
+
+* Videos uploaded to YouTube [via RSS](https://support.google.com/youtube/answer/13525207?hl=en#zippy=%2Ccan-i-deliver-an-rss-feed-if-i-already-have-a-podcast-on-youtube) will be uploaded as audio
+* Spotify can't handle videos via RSS yet. You will be able to see the episodes in Podcaster, but they will not be processed and sent to Spotify properly. This is apparently a known issue that they are working on resolving.
+
+The workaround for the above issues is to manually upload the episodes.
+
 ## Installation
 
 ### Prerequisites
