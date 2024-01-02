@@ -2,3 +2,4 @@ PyYAML==6.0.1
 requests==2.31.0
 Markdown==3.5.1
 sh==2.0.6
+yamllint==1.33.0

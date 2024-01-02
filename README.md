@@ -17,6 +17,13 @@ This tool was written for my podcast [Nerding Out with Viktor](https://blog.vikt
 - Converts ISO format dates to RFC 2822 format
 - Attempts to follow [The Podcast RSS Standard](https://github.com/Podcast-Standards-Project/PSP-1-Podcast-RSS-Specification)
 
+## Known Issues
+
+* Videos uploaded to YouTube [via RSS](https://support.google.com/youtube/answer/13525207?hl=en#zippy=%2Ccan-i-deliver-an-rss-feed-if-i-already-have-a-podcast-on-youtube) will be uploaded as audio.
+* Spotify can't handle videos via RSS yet. You will be able to see the episodes in Podcaster, but they will not be processed and sent to Spotify properly. This is apparently a known issue that they are working on resolving.
+
+The workaround for the above issues is to manually upload the episodes.
+
 ## Installation
 
 ### Prerequisites
@@ -65,6 +72,57 @@ $ python rss_generator.py
 Now copy your `podcast_feed.xml` to S3/GCS/R2 using a tool like `s3cmd`, `aws` or `mc` (from Minio).
 
 **Optional:** You can verify your RSS feed using a tool like [Podbase](https://podba.se/validate/).
+
+## Usage with GitHub Actions
+
+To incorporate this action into your workflow, follow these steps:
+
+1. **Create a Workflow File**:
+   - In your repository, create a new file under `.github/workflows`, for example, `rss_workflow.yml`.
+
+2. **Set Up the Workflow**:
+   - Use the following configuration as a starting point:
+
+```yaml
+name: Generate Podcast RSS Feed
+
+on: [push, pull_request]
+
+jobs:
+  generate-rss:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Install yamllint
+      run: pip install yamllint
+
+    - name: Lint YAML file
+      run: yamllint ${{ github.workspace }}/path/to/your/podcast_config.yaml
+
+    - name: Run Podcast RSS Generator
+      uses: vpetersson/podcast-rss-generator@master
+      with:
+        input_file: '/workspace/podcast_config.yaml'
+        output_file: '/workspace/odcast_feed.xml'
+```
+
+3. **Customize Your Workflow**:
+   - Adjust paths to the YAML configuration and the output XML files as per your repository structure.
+   - Ensure the `uses` field points to `vpetersson/podcast-rss-generator@master` (or specify a specific release tag/version instead of `master`).
+
+4. **Commit and Push Your Workflow**:
+   - Once you commit this workflow file to your repository, the action will be triggered based on the defined events (e.g., on push or pull request).
+
+### Inputs
+
+Note that you need `/workspace` is mapped to the root of your repository.
+
+- `input_file`: Path to the input YAML file. Default: `podcast_config.yaml`.
+- `output_file`: Path for the generated RSS feed XML file. Default: `podcast_feed.xml`.
+
 
 ## Running Tests
 
