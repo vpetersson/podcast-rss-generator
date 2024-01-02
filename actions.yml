@@ -1,6 +1,6 @@
 name: 'Podcast RSS Generator'
 description: 'Generates a podcast RSS feed from a YAML configuration'
-author: 'Your Name'
+author: 'Viktor Petersson'
 
 runs:
   using: 'docker'
