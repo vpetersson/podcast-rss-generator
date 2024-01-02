@@ -97,7 +97,9 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Install yamllint
-      run: pip install yamllint
+      run: |
+        sudo apt-get update
+        sudo apt-get install yamllint
 
     - name: Lint YAML file
       run: yamllint ${{ github.workspace }}/path/to/your/podcast_config.yaml
@@ -105,8 +107,8 @@ jobs:
     - name: Run Podcast RSS Generator
       uses: vpetersson/podcast-rss-generator@master
       with:
-        input_file: '/workspace/podcast_config.yaml'
-        output_file: '/workspace/odcast_feed.xml'
+        input_file: 'podcast_config.yaml'
+        output_file: 'podcast_feed.xml'
 ```
 
 3. **Customize Your Workflow**:
@@ -117,8 +119,6 @@ jobs:
    - Once you commit this workflow file to your repository, the action will be triggered based on the defined events (e.g., on push or pull request).
 
 ### Inputs
-
-Note that you need `/workspace` is mapped to the root of your repository.
 
 - `input_file`: Path to the input YAML file. Default: `podcast_config.yaml`.
 - `output_file`: Path for the generated RSS feed XML file. Default: `podcast_feed.xml`.
