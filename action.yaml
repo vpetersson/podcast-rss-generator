@@ -18,8 +18,8 @@ inputs:
   input_file:
     description: 'Input YAML file'
     required: true
-    default: '/workspace/podcast_config.yaml'
+    default: 'podcast_config.yaml'
   output_file:
     description: 'Output XML file'
     required: true
-    default: '/workspace/podcast_feed.xml'
+    default: 'podcast_feed.xml'
