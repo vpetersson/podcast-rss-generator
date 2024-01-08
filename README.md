@@ -93,22 +93,57 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-    - name: Install yamllint
-      run: |
-        sudo apt-get update
-        sudo apt-get install yamllint
+      - name: Install yamllint
+        run: |
+          sudo apt-get update
+          sudo apt-get install yamllint
 
-    - name: Lint YAML file
-      run: yamllint ${{ github.workspace }}/path/to/your/podcast_config.yaml
+      - name: Lint YAML file
+        run: yamllint podcast_config.yaml
 
-    - name: Run Podcast RSS Generator
-      uses: vpetersson/podcast-rss-generator@master
-      with:
-        input_file: 'podcast_config.yaml'
-        output_file: 'podcast_feed.xml'
+      - name: Run Podcast RSS Generator
+        uses: vpetersson/podcast-rss-generator@master
+        with:
+          input_file: 'podcast_config.yaml'
+          output_file: 'podcast_feed.xml'
+
+      - name: Validate output with xq
+        run: |
+          wget -q https://github.com/sibprogrammer/xq/releases/download/v1.2.3/xq_1.2.3_linux_amd64.tar.gz
+          tar xfz xq_1.2.3_linux_amd64.tar.gz
+          cat podcast_feed.xml | ./xq
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: podcast_feed.xml
+          path: podcast_feed.xml
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: generate-rss
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: podcast_feed.xml
+
+      - name: Install mc
+        run: |
+          wget -q https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x mc
+
+      - name: Set up mc
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
+          R2_KEY_SECRET: ${{ secrets.R2_KEY_SECRET }}
+        run: ./mc alias set r2-storage ${R2_ENDPOINT} ${R2_KEY_ID} ${R2_KEY_SECRET}
+
+      - name: Copy file
+        run: ./mc cp podcast_feed.xml r2-storage/my-bucket/
 ```
 
 3. **Customize Your Workflow**:
