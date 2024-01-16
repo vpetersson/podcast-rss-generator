@@ -71,7 +71,22 @@ $ python rss_generator.py
 
 Now copy your `podcast_feed.xml` to S3/GCS/R2 using a tool like `s3cmd`, `aws` or `mc` (from Minio).
 
-**Optional:** You can verify your RSS feed using a tool like [Podbase](https://podba.se/validate/).
+You can verify your RSS feed using a tool like [Podbase](https://podba.se/validate/).
+
+## **Optional:** Optimize video
+
+If you're dealing with video podcasts, the file size matters for obvious reasons. Here's what I'm using for re-encoding my videos (on macOS):
+
+```bash
+$ ffmpeg -i input.mp4 \
+    -tag:v hvc1 \
+    -c:v hevc_videotoolbox \
+    -crf 26 \
+    -preset slowest \
+    -c:a aac \
+    -b:a 128k \
+    output.mp4
+```
 
 ## Usage with GitHub Actions
 
