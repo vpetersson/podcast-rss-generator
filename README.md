@@ -81,10 +81,11 @@ If you're dealing with video podcasts, the file size matters for obvious reasons
 $ ffmpeg -i input.mp4 \
     -tag:v hvc1 \
     -c:v hevc_videotoolbox \
-    -crf 26 \
+    -crf 28 \
     -preset slowest \
     -c:a aac \
     -b:a 128k \
+    -movflags faststart \
     output.mp4
 ```
 
