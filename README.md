@@ -11,7 +11,6 @@ It assumes that you self-host your video episodes somewhere (e.g. S3/GCS/R2) as 
 This tool was written for my podcast [Nerding Out with Viktor](https://blog.viktorpetersson.com/nerding-out-with-viktor/) to solve for the fact that Apple's [Podcast Connect](https://podcastsconnect.apple.com) require you to self-host videos in order to publish.
 
 ## Features
-
 - Generates RSS feed for audio/video podcasts
 - Reads podcast metadata and episode data from a YAML file
 - Converts ISO format dates to RFC 2822 format
@@ -75,7 +74,9 @@ You can verify your RSS feed using a tool like [Podbase](https://podba.se/valida
 
 ## **Optional:** Optimize video
 
-If you're dealing with video podcasts, the file size matters for obvious reasons. Here's what I'm using for re-encoding my videos (on macOS):
+If you're dealing with video podcasts, the file size matters for obvious reasons. What I do is to export the video as h624 from my video editor (which I upload to YouTube and Spotify).
+
+I then re-encode the h264 video to h265 for other platforms using `ffmpeg` with the following command (on macOS):
 
 ```bash
 $ ffmpeg -i input.mp4 \
