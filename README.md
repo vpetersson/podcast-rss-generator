@@ -8,7 +8,9 @@ This an RSS Feed Generator is designed to generate an RSS feed for audio/video p
 
 It assumes that you self-host your video episodes somewhere (e.g. S3/GCS/R2) as well as the output of this script. You can then point YouTube/Spotify/Apple Podcast to this path.
 
-This tool was written for my podcast [Nerding Out with Viktor](https://blog.viktorpetersson.com/nerding-out-with-viktor/) to solve for the fact that Apple's [Podcast Connect](https://podcastsconnect.apple.com) require you to self-host videos in order to publish.
+This tool was written for my podcast [Nerding Out with Viktor](https://vpetersson.com/podcast/) to solve for the fact that Apple's [Podcast Connect](https://podcastsconnect.apple.com) require you to self-host videos in order to publish.
+
+I also wrote an article on how you can use this tool to automatically turn a video podcast into audio in [this article](https://vpetersson.com/2024/06/27/video-to-audio-podcast.html).
 
 ## Features
 - Generates RSS feed for audio/video podcasts
@@ -105,6 +107,8 @@ name: Generate Podcast RSS Feed
 
 on: [push, pull_request]
 
+env:
+  R2_BUCKET: 'foobar'
 jobs:
   generate-rss:
     runs-on: ubuntu-latest
@@ -160,7 +164,7 @@ jobs:
         run: ./mc alias set r2-storage ${R2_ENDPOINT} ${R2_KEY_ID} ${R2_KEY_SECRET}
 
       - name: Copy file
-        run: ./mc cp podcast_feed.xml r2-storage/my-bucket/
+        run: ./mc cp podcast_feed.xml r2-storage/${R2_BUCKET}/
 ```
 
 3. **Customize Your Workflow**:
