@@ -5,12 +5,16 @@ RUN apt-get update && \
     apt-get install -y ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy your script and requirements file
-COPY rss_generator.py /rss_generator.py
-COPY requirements.txt /requirements.txt
+# Install Poetry
+RUN pip install poetry
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r /requirements.txt
+# Copy project files
+WORKDIR /app
+COPY . /app/
 
-# Set the entrypoint to your script
-ENTRYPOINT ["python", "/rss_generator.py"]
+# Install dependencies using Poetry
+RUN poetry config virtualenvs.create false && \
+    poetry install --only main --no-interaction --no-ansi
+
+# Set the entrypoint script
+ENTRYPOINT ["python", "-m", "podcast_rss_generator.cli"]

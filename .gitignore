@@ -162,3 +162,7 @@ cython_debug/
 # Exclude output from script
 podcast_config.yaml
 podcast_feed.xml
+
+# Poetry
+.venv/
+dist/

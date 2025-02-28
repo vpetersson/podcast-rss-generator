@@ -1,0 +1,60 @@
+[tool.poetry]
+name = "podcast-rss-generator"
+version = "0.1.0"
+description = "A tool to generate RSS feeds for audio/video podcasts"
+authors = ["Viktor Petersson <plunk.cyclone-4l@icloud.com>"]
+readme = "README.md"
+license = "LICENSE"
+repository = "https://github.com/vpetersson/podcast-rss-generator"
+packages = [{include = "podcast_rss_generator"}]
+
+[tool.poetry.dependencies]
+python = "^3.8.1"
+PyYAML = "^6.0.1"
+requests = "^2.31.0"
+Markdown = "^3.5.1"
+sh = "^2.0.6"
+retry = "^0.9.2"
+
+[tool.poetry.group.dev.dependencies]
+yamllint = "^1.33.0"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+ruff = "^0.1.0"
+black = "^23.7.0"
+isort = "^5.12.0"
+
+[tool.poetry.scripts]
+podcast-rss-generator = "podcast_rss_generator.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ["py38"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+
+[tool.ruff]
+line-length = 88
+target-version = "py38"
+select = ["E", "F", "W", "I", "B", "C4", "ARG", "SIM"]
+ignore = []
+exclude = [
+    ".git",
+    ".ruff_cache",
+    "__pypackages__",
+    "dist",
+    "venv",
+    ".venv",
+]
