@@ -3,6 +3,7 @@ from datetime import datetime
 from email.utils import format_datetime
 import argparse
 import time
+import os
 
 import markdown
 import requests
@@ -10,6 +11,48 @@ import yaml
 from sh import ffprobe, ErrorReturnCode
 from retry import retry
 
+# Flag to indicate if we're in test mode
+TEST_MODE = os.environ.get('RSS_GENERATOR_TEST_MODE', 'false').lower() == 'true'
+
+# Mock ffprobe output for testing
+MOCK_FFPROBE_OUTPUT = """streams.stream.0.index=0
+streams.stream.0.codec_name="aac"
+streams.stream.0.codec_long_name="AAC (Advanced Audio Coding)"
+streams.stream.0.profile="LC"
+streams.stream.0.codec_type="audio"
+streams.stream.0.codec_tag_string="mp4a"
+streams.stream.0.codec_tag="0x6134706d"
+streams.stream.0.sample_fmt="fltp"
+streams.stream.0.sample_rate="44100"
+streams.stream.0.channels=2
+streams.stream.0.channel_layout="stereo"
+streams.stream.0.bits_per_sample=0
+streams.stream.0.initial_padding=0
+streams.stream.0.id="0x1"
+streams.stream.0.r_frame_rate="0/0"
+streams.stream.0.avg_frame_rate="0/0"
+streams.stream.0.time_base="1/44100"
+streams.stream.0.start_pts=0
+streams.stream.0.start_time="0.000000"
+streams.stream.0.duration_ts=156170240
+streams.stream.0.duration="3541.275283"
+streams.stream.0.bit_rate="107301"
+streams.stream.0.max_bit_rate="N/A"
+streams.stream.0.bits_per_raw_sample="N/A"
+streams.stream.0.nb_frames="152510"
+streams.stream.0.nb_read_frames="N/A"
+streams.stream.0.nb_read_packets="N/A"
+streams.stream.0.extradata_size=2
+streams.stream.0.disposition.default=1"""
+
+# Mock HTTP response for testing
+class MockResponse:
+    def __init__(self, url):
+        self.url = url
+        self.headers = {
+            'content-length': '12345678',
+            'content-type': 'audio/mpeg'
+        }
 
 def read_podcast_config(yaml_file_path):
     with open(yaml_file_path, "r", encoding="utf-8") as file:
@@ -24,6 +67,8 @@ def convert_iso_to_rfc2822(iso_date):
 @retry(tries=5, delay=2, backoff=2, logger=None)
 def _make_http_request(url):
     """Make HTTP request with retry logic"""
+    if TEST_MODE:
+        return MockResponse(url)
     return requests.head(url, allow_redirects=True)
 
 
@@ -31,6 +76,9 @@ def _run_ffprobe_with_retry(url, max_retries=5, delay=2):
     """
     Run ffprobe with manual retry logic to handle ErrorReturnCode exceptions
     """
+    if TEST_MODE:
+        return MOCK_FFPROBE_OUTPUT
+
     retries = 0
     while retries < max_retries:
         try:
