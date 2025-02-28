@@ -9,9 +9,9 @@ runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
-    - "--input-file"
+    - '--input-file'
     - ${{ inputs.input_file }}
-    - "--output-file"
+    - '--output-file'
     - ${{ inputs.output_file }}
 
 inputs:

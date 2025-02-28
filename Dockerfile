@@ -1,16 +1,23 @@
-FROM python:3.9-slim
+FROM python:3.12-slim-bookworm
 
 # Install ffmpeg
 RUN apt-get update && \
     apt-get install -y ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy your script and requirements file
-COPY rss_generator.py /rss_generator.py
-COPY requirements.txt /requirements.txt
+# Install Poetry
+RUN pip install poetry
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r /requirements.txt
+# Copy only necessary files for dependency installation
+WORKDIR /app
+COPY pyproject.toml README.md LICENSE /app/
 
-# Set the entrypoint to your script
-ENTRYPOINT ["python", "/rss_generator.py"]
+# Generate poetry.lock file with Python 3.13
+RUN poetry config virtualenvs.create false && \
+    poetry install --only main --no-interaction --no-ansi --no-root
+
+# Copy the rest of the project files
+COPY . /app/
+
+# Set the entrypoint script
+ENTRYPOINT ["python", "-m", "podcast_rss_generator.cli"]

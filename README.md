@@ -30,10 +30,42 @@ The workaround for the above issues is to manually upload the episodes.
 ### Prerequisites
 
 - Python 3.8 or higher
-- pip (Python package installer)
+- pip (Python package installer) or Poetry
 - ffmpeg
 
-### Setup
+### Setup with Poetry (Recommended)
+
+1. **Clone the Repository**
+
+```bash
+$ git clone https://github.com/vpetersson/podcast-rss-generator.git
+$ cd podcast-rss-generator
+```
+
+2. **Install with Poetry**
+
+If you have Poetry installed:
+
+```bash
+$ poetry install
+```
+
+This will install the package and its dependencies in a virtual environment.
+
+3. **Run the Command**
+
+```bash
+$ poetry run podcast-rss-generator --input-file podcast_config.yaml --output-file podcast_feed.xml
+```
+
+Or activate the virtual environment and run:
+
+```bash
+$ poetry shell
+$ podcast-rss-generator --input-file podcast_config.yaml --output-file podcast_feed.xml
+```
+
+### Setup with Pip
 
 1. **Clone the Repository**
 
@@ -45,10 +77,14 @@ $ cd podcast-rss-generator
 2. **Install Dependencies**
 
 ```bash
-$ pip install -r requirements.txt
+$ pip install -e .
 ```
 
-**Optional:** Install `yamllint`, `xq` and `flake8`.
+3. **Run the Command**
+
+```bash
+$ podcast-rss-generator --input-file podcast_config.yaml --output-file podcast_feed.xml
+```
 
 ## Usage
 
