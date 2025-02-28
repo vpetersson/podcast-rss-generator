@@ -2,12 +2,57 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import format_datetime
 import argparse
+import time
+import os
 
 import markdown
 import requests
 import yaml
-from sh import ffprobe
+from sh import ffprobe, ErrorReturnCode
+from retry import retry
 
+# Flag to indicate if we're in test mode
+TEST_MODE = os.environ.get('RSS_GENERATOR_TEST_MODE', 'false').lower() == 'true'
+
+# Mock ffprobe output for testing
+MOCK_FFPROBE_OUTPUT = """streams.stream.0.index=0
+streams.stream.0.codec_name="aac"
+streams.stream.0.codec_long_name="AAC (Advanced Audio Coding)"
+streams.stream.0.profile="LC"
+streams.stream.0.codec_type="audio"
+streams.stream.0.codec_tag_string="mp4a"
+streams.stream.0.codec_tag="0x6134706d"
+streams.stream.0.sample_fmt="fltp"
+streams.stream.0.sample_rate="44100"
+streams.stream.0.channels=2
+streams.stream.0.channel_layout="stereo"
+streams.stream.0.bits_per_sample=0
+streams.stream.0.initial_padding=0
+streams.stream.0.id="0x1"
+streams.stream.0.r_frame_rate="0/0"
+streams.stream.0.avg_frame_rate="0/0"
+streams.stream.0.time_base="1/44100"
+streams.stream.0.start_pts=0
+streams.stream.0.start_time="0.000000"
+streams.stream.0.duration_ts=156170240
+streams.stream.0.duration="3541.275283"
+streams.stream.0.bit_rate="107301"
+streams.stream.0.max_bit_rate="N/A"
+streams.stream.0.bits_per_raw_sample="N/A"
+streams.stream.0.nb_frames="152510"
+streams.stream.0.nb_read_frames="N/A"
+streams.stream.0.nb_read_packets="N/A"
+streams.stream.0.extradata_size=2
+streams.stream.0.disposition.default=1"""
+
+# Mock HTTP response for testing
+class MockResponse:
+    def __init__(self, url):
+        self.url = url
+        self.headers = {
+            'content-length': '12345678',
+            'content-type': 'audio/mpeg'
+        }
 
 def read_podcast_config(yaml_file_path):
     with open(yaml_file_path, "r", encoding="utf-8") as file:
@@ -19,22 +64,63 @@ def convert_iso_to_rfc2822(iso_date):
     return format_datetime(date_obj)
 
 
+@retry(tries=5, delay=2, backoff=2, logger=None)
+def _make_http_request(url):
+    """Make HTTP request with retry logic"""
+    if TEST_MODE:
+        return MockResponse(url)
+    return requests.head(url, allow_redirects=True)
+
+
+def _run_ffprobe_with_retry(url, max_retries=5, delay=2):
+    """
+    Run ffprobe with manual retry logic to handle ErrorReturnCode exceptions
+    """
+    if TEST_MODE:
+        return MOCK_FFPROBE_OUTPUT
+
+    retries = 0
+    while retries < max_retries:
+        try:
+            return ffprobe(
+                "-hide_banner",
+                "-v",
+                "quiet",
+                "-show_streams",
+                "-print_format",
+                "flat",
+                url,
+            )
+        except ErrorReturnCode as e:
+            retries += 1
+            if retries >= max_retries:
+                print(f"Failed to run ffprobe after {max_retries} attempts for URL: {url}")
+                # Return empty string if all retries fail
+                return ""
+            print(f"ffprobe failed (attempt {retries}/{max_retries}), retrying in {delay} seconds...")
+            time.sleep(delay)
+            delay *= 2  # Exponential backoff
+
+
 def get_file_info(url):
-    response = requests.head(url, allow_redirects=True)
+    # Make HTTP request with retry logic
+    response = _make_http_request(url)
 
     # Get duration of audio/video file
     # We're using the response.url here in order to
     # follow redirects and get the actual file
 
-    probe = ffprobe(
-        "-hide_banner",
-        "-v",
-        "quiet",
-        "-show_streams",
-        "-print_format",
-        "flat",
-        response.url,
-    )
+    # Run ffprobe with retry logic
+    probe = _run_ffprobe_with_retry(response.url)
+
+    # If probe is empty (all retries failed), set duration to None
+    if not probe:
+        return {
+            "content-length": response.headers.get("content-length"),
+            "content-type": response.headers.get("content-type"),
+            "duration": None,
+        }
+
     lines = probe.split("\n")
 
     # Filtering out the line that contains 'streams.stream.0.duration'

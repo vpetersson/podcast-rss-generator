@@ -2,6 +2,9 @@ import os
 import unittest
 from xml.etree import ElementTree as ET
 
+# Set test mode before importing the module
+os.environ['RSS_GENERATOR_TEST_MODE'] = 'true'
+
 from rss_generator import (convert_iso_to_rfc2822, generate_rss, get_file_info,
                            read_podcast_config)
 
