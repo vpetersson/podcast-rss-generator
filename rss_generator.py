@@ -2,11 +2,13 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import format_datetime
 import argparse
+import time
 
 import markdown
 import requests
 import yaml
-from sh import ffprobe
+from sh import ffprobe, ErrorReturnCode
+from retry import retry
 
 
 def read_podcast_config(yaml_file_path):
@@ -19,22 +21,58 @@ def convert_iso_to_rfc2822(iso_date):
     return format_datetime(date_obj)
 
 
+@retry(tries=5, delay=2, backoff=2, logger=None)
+def _make_http_request(url):
+    """Make HTTP request with retry logic"""
+    return requests.head(url, allow_redirects=True)
+
+
+def _run_ffprobe_with_retry(url, max_retries=5, delay=2):
+    """
+    Run ffprobe with manual retry logic to handle ErrorReturnCode exceptions
+    """
+    retries = 0
+    while retries < max_retries:
+        try:
+            return ffprobe(
+                "-hide_banner",
+                "-v",
+                "quiet",
+                "-show_streams",
+                "-print_format",
+                "flat",
+                url,
+            )
+        except ErrorReturnCode as e:
+            retries += 1
+            if retries >= max_retries:
+                print(f"Failed to run ffprobe after {max_retries} attempts for URL: {url}")
+                # Return empty string if all retries fail
+                return ""
+            print(f"ffprobe failed (attempt {retries}/{max_retries}), retrying in {delay} seconds...")
+            time.sleep(delay)
+            delay *= 2  # Exponential backoff
+
+
 def get_file_info(url):
-    response = requests.head(url, allow_redirects=True)
+    # Make HTTP request with retry logic
+    response = _make_http_request(url)
 
     # Get duration of audio/video file
     # We're using the response.url here in order to
     # follow redirects and get the actual file
 
-    probe = ffprobe(
-        "-hide_banner",
-        "-v",
-        "quiet",
-        "-show_streams",
-        "-print_format",
-        "flat",
-        response.url,
-    )
+    # Run ffprobe with retry logic
+    probe = _run_ffprobe_with_retry(response.url)
+
+    # If probe is empty (all retries failed), set duration to None
+    if not probe:
+        return {
+            "content-length": response.headers.get("content-length"),
+            "content-type": response.headers.get("content-type"),
+            "duration": None,
+        }
+
     lines = probe.split("\n")
 
     # Filtering out the line that contains 'streams.stream.0.duration'
