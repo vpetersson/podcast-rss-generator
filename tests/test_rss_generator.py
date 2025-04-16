@@ -2,6 +2,7 @@ import os
 import unittest
 from xml.etree import ElementTree as ET
 from unittest.mock import patch, MagicMock
+from datetime import datetime, timezone, timedelta
 
 # Set test mode before importing the module
 os.environ["RSS_GENERATOR_TEST_MODE"] = "true"
@@ -339,6 +340,41 @@ class TestRSSGenerator(unittest.TestCase):
 
                     if os.path.exists(output_filename):
                         os.remove(output_filename)
+
+    def test_date_comparison_with_naive_datetime(self):
+        """Test that future-dated episodes with naive datetime strings are skipped."""
+        # Create a config with a future date without timezone info
+        future_naive_date = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        test_config = {
+            "metadata": self.config["metadata"].copy(), # Use existing valid metadata
+            "episodes": [
+                {
+                    "title": "Future Episode (Naive)",
+                    "description": "Test description",
+                    "publication_date": future_naive_date,
+                    "asset_url": "http://example.com/future_naive.mp3",
+                }
+            ]
+        }
+        # Mock get_file_info to avoid network calls
+        mock_file_info = {
+            "content-length": "1000",
+            "content-type": "audio/mpeg",
+            "duration": 120,
+            "content_hash": None,
+        }
+        with patch("rss_generator.get_file_info", return_value=mock_file_info):
+            generate_rss(test_config, "test_naive_date_feed.xml")
+
+        # Assert the feed was generated but contains no items (because the episode was skipped)
+        tree = ET.parse("test_naive_date_feed.xml")
+        root = tree.getroot()
+        channel = root.find("channel")
+        items = channel.findall("item")
+        self.assertEqual(len(items), 0, "Future episode with naive datetime should have been skipped")
+
+        if os.path.exists("test_naive_date_feed.xml"):
+            os.remove("test_naive_date_feed.xml")
 
     @classmethod
     def tearDownClass(cls):
