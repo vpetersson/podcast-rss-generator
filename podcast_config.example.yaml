@@ -33,7 +33,7 @@ episodes:
         type: "application/x-subrip"
       - url: "https://example.com/podcast/transcripts/episode1.vtt"
         type: "text/vtt"
-        language: "en"
+        language: "en" # Optional: Language code (e.g., "en", "en-US", "es"). Follows RFC 5646.
 
   - title: "Episode 2: Deep Dive into Python"
     description: "Exploring advanced Python features."
@@ -56,4 +56,4 @@ episodes:
     transcripts:
       - url: "https://example.com/podcast/transcripts/bonus1.json"
         type: "application/json"
-        # language: "es" # Example commented out optional attribute
+        # language: "es" # Optional: Language code (e.g., "en", "en-US", "es"). Follows RFC 5646.

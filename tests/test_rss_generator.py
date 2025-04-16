@@ -157,15 +157,26 @@ class TestRSSGenerator(unittest.TestCase):
                 self.assertEqual(len(transcript_tags_old), len(episode["transcripts"]),
                                  f"[Old Keys] Episode '{title}' transcript tag count mismatch")
 
-                # Verify attributes of the first transcript for simplicity
-                first_transcript_config = episode["transcripts"][0]
-                first_tag_new = transcript_tags_new[0]
-                self.assertEqual(first_tag_new.get("url"), first_transcript_config["url"])
-                self.assertEqual(first_tag_new.get("type"), first_transcript_config["type"])
-                if "language" in first_transcript_config:
-                     self.assertEqual(first_tag_new.get("language"), first_transcript_config["language"])
-                else:
-                    self.assertIsNone(first_tag_new.get("language"))
+                # Verify attributes for *all* transcripts
+                for i, transcript_config in enumerate(episode["transcripts"]):
+                    tag_new = transcript_tags_new[i]
+                    tag_old = transcript_tags_old[i] # Assuming order is preserved
+
+                    # Check New Keys Feed
+                    self.assertEqual(tag_new.get("url"), transcript_config["url"], f"[New Keys] Episode '{title}' transcript {i+1} URL mismatch")
+                    self.assertEqual(tag_new.get("type"), transcript_config["type"], f"[New Keys] Episode '{title}' transcript {i+1} type mismatch")
+                    if "language" in transcript_config:
+                        self.assertEqual(tag_new.get("language"), transcript_config["language"], f"[New Keys] Episode '{title}' transcript {i+1} language mismatch")
+                    else:
+                        self.assertIsNone(tag_new.get("language"), f"[New Keys] Episode '{title}' transcript {i+1} should not have language")
+
+                    # Check Old Keys Feed (assuming transcript logic remains the same)
+                    self.assertEqual(tag_old.get("url"), transcript_config["url"], f"[Old Keys] Episode '{title}' transcript {i+1} URL mismatch")
+                    self.assertEqual(tag_old.get("type"), transcript_config["type"], f"[Old Keys] Episode '{title}' transcript {i+1} type mismatch")
+                    if "language" in transcript_config:
+                        self.assertEqual(tag_old.get("language"), transcript_config["language"], f"[Old Keys] Episode '{title}' transcript {i+1} language mismatch")
+                    else:
+                        self.assertIsNone(tag_old.get("language"), f"[Old Keys] Episode '{title}' transcript {i+1} should not have language")
 
     def test_episode_itunes_tags(self):
         # Check episode tags based on new keys config
