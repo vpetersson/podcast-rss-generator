@@ -39,10 +39,28 @@ jobs:
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
 
-      - name: Ensure example file passes YAmllint
+      - name: Ensure example file passes YAMLlint
         run: |
           yamllint -fgithub -d "{rules: {line-length: false}}" podcast_config.example.yaml
+
+      - name: Generate Feed from Example
+        run: python rss_generator.py --input-file podcast_config.example.yaml --output-file podcast_feed.xml --skip-asset-verification
+
+      - name: Install xq
+        run: |
+          wget -q https://github.com/sibprogrammer/xq/releases/download/v1.2.3/xq_1.2.3_linux_amd64.tar.gz
+          tar xfz xq_1.2.3_linux_amd64.tar.gz
+          sudo mv xq /usr/local/bin/
+
+      - name: Validate Feed XML with xq
+        run: xq . podcast_feed.xml
 
       - name: Run tests
         run: |
           python -m unittest discover tests
+
+      - name: Upload Test Feed Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: podcast-feed-xml
+          path: podcast_feed.xml
