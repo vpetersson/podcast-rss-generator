@@ -101,7 +101,7 @@ def _run_ffprobe_with_retry(url, max_retries=5, delay=2):
                 "flat",
                 url,
             )
-        except ErrorReturnCode as e:
+        except ErrorReturnCode:
             retries += 1
             if retries >= max_retries:
                 print(
@@ -199,7 +199,7 @@ def format_description(description):
     return wrapped_description
 
 
-def generate_rss(config, output_file_path):
+def generate_rss(config, output_file_path, skip_asset_verification=False):
     # --- Namespace Registration --- (Ensure podcast namespace is included)
     ET.register_namespace("itunes", "http://www.itunes.com/dtds/podcast-1.0.dtd")
     ET.register_namespace("atom", "http://www.w3.org/2005/Atom")
@@ -306,7 +306,18 @@ def generate_rss(config, output_file_path):
             )
             continue
 
-        file_info = get_file_info(episode["asset_url"])
+        if skip_asset_verification:
+            print(f"  Skipping asset verification for {episode['asset_url']}")
+            # Provide default/placeholder values
+            file_info = {
+                "content-length": "0", # Required by enclosure
+                "content-type": "application/octet-stream", # Generic fallback type
+                "duration": None,
+                "content_hash": None,
+            }
+        else:
+            file_info = get_file_info(episode["asset_url"])
+
         item = ET.SubElement(channel, "item")
         ET.SubElement(item, "pubDate").text = convert_iso_to_rfc2822(
             pub_date_str
@@ -329,17 +340,19 @@ def generate_rss(config, output_file_path):
             item,
             "enclosure",
             url=episode["asset_url"],
-            type=file_info["content-type"],
-            length=str(file_info["content-length"]),
+            # Use fetched or default values
+            type=file_info.get("content-type", "application/octet-stream"),
+            length=str(file_info.get("content-length", "0")),
         )
 
         # Apply global itunes:explicit setting to each episode
         itunes_explicit = ET.SubElement(item, "itunes:explicit")
         itunes_explicit.text = global_explicit
 
-        # Add itunes:duration tag
-        itunes_duration = ET.SubElement(item, "itunes:duration")
-        itunes_duration.text = str(file_info["duration"])
+        # Add itunes:duration tag if available
+        if file_info.get("duration") is not None:
+            itunes_duration = ET.SubElement(item, "itunes:duration")
+            itunes_duration.text = str(file_info["duration"])
 
         # iTunes-specific tags
         if episode.get("episode") is not None:
@@ -399,14 +412,21 @@ def main():
     parser.add_argument(
         "--output-file", type=str, default="podcast_feed.xml", help="Output XML file"
     )
+    parser.add_argument(
+        "--skip-asset-verification",
+        action="store_true", # Makes it a boolean flag
+        help="Skip HTTP HEAD and ffprobe checks for asset URLs (use for testing/fake URLs)"
+    )
 
     # Parse arguments from the command line
     args = parser.parse_args()
 
     print(f"Input file: {args.input_file}, Output file: {args.output_file}")
+    if args.skip_asset_verification:
+        print("Skipping asset verification.")
 
     config = read_podcast_config(args.input_file)
-    generate_rss(config, args.output_file)
+    generate_rss(config, args.output_file, skip_asset_verification=args.skip_asset_verification)
 
 
 if __name__ == "__main__":

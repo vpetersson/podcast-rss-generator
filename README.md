@@ -53,6 +53,22 @@ $ pip install -r requirements.txt
 
 ## Usage
 
+```bash
+$ python rss_generator.py --help
+usage: rss_generator.py [-h] [--input-file INPUT_FILE] [--output-file OUTPUT_FILE] [--skip-asset-verification]
+
+Process some parameters.
+
+options:
+  -h, --help            show this help message and exit
+  --input-file INPUT_FILE
+                        Input YAML file
+  --output-file OUTPUT_FILE
+                        Output XML file
+  --skip-asset-verification
+                        Skip HTTP HEAD and ffprobe checks for asset URLs (use for testing/fake URLs)
+```
+
 1. **Prepare Your Data Files**
 
 Copy `podcast_config.example.yaml` to `podcast_config.yaml` and fill out your podcast metadata and eepisodes.

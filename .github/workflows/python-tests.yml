@@ -44,7 +44,7 @@ jobs:
           yamllint -fgithub -d "{rules: {line-length: false}}" podcast_config.example.yaml
 
       - name: Generate Feed from Example
-        run: python rss_generator.py --input-file podcast_config.example.yaml --output-file podcast_feed.xml
+        run: python rss_generator.py --input-file podcast_config.example.yaml --output-file podcast_feed.xml --skip-asset-verification
 
       - name: Install xq
         run: |
