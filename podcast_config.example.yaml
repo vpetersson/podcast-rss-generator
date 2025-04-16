@@ -1,34 +1,53 @@
 ---
 metadata:
-  title: My Video Podcast
-  description: |
-    A podcast about various topics. This block can be formatted using Markdown, with things like lists:
-
-      * List item 1
-      * List item 2
-  language: en-us
-  link: http://example.com/podcast
-  itunes_image: http://example.com/images/podcast-cover.jpg
-  itunes_category: Technology
-  itunes_explicit: false
-  itunes_author: Author Name
-  itunes_email: contact@example.com
-  rss_feed_url: https://example.com/podcast_feed.xml
+  title: "My Awesome Podcast"
+  description: "A podcast about technology and programming."
+  link: "https://example.com/podcast" # Fallback link
+  rss_feed_url: "https://example.com/podcast/feed.xml"
+  language: "en-us"
+  email: "podcast@example.com"
+  author: "Podcast Host"
+  category: "Technology"
+  image: "https://example.com/podcast/images/podcast_cover.png" # Fallback image
+  explicit: false
+  use_asset_hash_as_guid: false # Default: Use asset_url. Set to true to use content hash (SHA256/MD5/ETag).
+  copyright: "© 2024 Your Name/Company" # Optional copyright notice
 
 episodes:
-  - title: "Episode 1"
-    description: "This is the *first* episode. You can also include [links](https://foobar.com)."
-    publication_date: "2023-02-01T10:00:00"
-    asset_url: "https://assets.allsamplefiles.com/mp4/ns/60s/sample-file-quad-hd.mp4"
+  - title: "Episode 1: The Beginning"
+    description: "Introduction to the podcast."
+    publication_date: "2023-01-15T10:00:00Z"
+    asset_url: "https://example.com/podcast/episodes/episode1.mp3"
     episode: 1
     season: 1
-    episode_type: "trailer"
-    itunes_image: http://example.com/images/episode1.jpg
-    link: http://example.com/episode1
-  - title: "Episode 2"
-    description: "This is the second episode."
-    publication_date: "2023-02-08T11:00:00"
-    asset_url: "https://assets.allsamplefiles.com/mp4/ns/60s/sample-file-hd.mp4"
+    episode_type: "full"
+    # This episode will use the global link and image from metadata
+    transcripts:
+      - url: "https://example.com/podcast/transcripts/episode1.srt"
+        type: "application/x-subrip"
+      - url: "https://example.com/podcast/transcripts/episode1.vtt"
+        type: "text/vtt"
+        language: "en"
+
+  - title: "Episode 2: Deep Dive into Python"
+    description: "Exploring advanced Python features."
+    publication_date: "2023-01-22T10:00:00Z"
+    asset_url: "https://example.com/podcast/episodes/episode2.mp3"
+    link: "https://example.com/podcast/episodes/2" # Episode-specific link
+    image: "https://example.com/podcast/images/episode2_cover.png" # Episode-specific image
     episode: 2
     season: 1
     episode_type: "full"
+    # This episode has specific link/image but no transcripts
+
+  - title: "Special Bonus Episode"
+    description: "An interview with a special guest."
+    publication_date: "2023-01-25T12:00:00Z"
+    asset_url: "https://example.com/podcast/episodes/bonus1.mp3"
+    link: "https://example.com/podcast/episodes/bonus" # Episode-specific link
+    # This episode will use the global image from metadata, but has its own link
+    episode_type: "bonus"
+    transcripts:
+      - url: "https://example.com/podcast/transcripts/bonus1.json"
+        type: "application/json"
+        # language: "es" # Example commented out optional attribute

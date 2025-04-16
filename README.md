@@ -13,6 +13,7 @@ This tool was written for my podcast [Nerding Out with Viktor](https://vpetersso
 I also wrote an article on how you can use this tool to automatically turn a video podcast into audio in [this article](https://vpetersson.com/2024/06/27/video-to-audio-podcast.html).
 
 ## Features
+
 - Generates RSS feed for audio/video podcasts
 - Reads podcast metadata and episode data from a YAML file
 - Converts ISO format dates to RFC 2822 format
@@ -20,8 +21,8 @@ I also wrote an article on how you can use this tool to automatically turn a vid
 
 ## Known Issues
 
-* Videos uploaded to YouTube [via RSS](https://support.google.com/youtube/answer/13525207?hl=en#zippy=%2Ccan-i-deliver-an-rss-feed-if-i-already-have-a-podcast-on-youtube) will be uploaded as audio.
-* Spotify can't handle videos via RSS yet. You will be able to see the episodes in Podcaster, but they will not be processed and sent to Spotify properly. This is apparently a known issue that they are working on resolving.
+- Videos uploaded to YouTube [via RSS](https://support.google.com/youtube/answer/13525207?hl=en#zippy=%2Ccan-i-deliver-an-rss-feed-if-i-already-have-a-podcast-on-youtube) will be uploaded as audio.
+- Spotify can't handle videos via RSS yet. You will be able to see the episodes in Podcaster, but they will not be processed and sent to Spotify properly. This is apparently a known issue that they are working on resolving.
 
 The workaround for the above issues is to manually upload the episodes.
 
@@ -55,6 +56,44 @@ $ pip install -r requirements.txt
 1. **Prepare Your Data Files**
 
 Copy `podcast_config.example.yaml` to `podcast_config.yaml` and fill out your podcast metadata and eepisodes.
+
+The `podcast_config.yaml` file contains two main sections: `metadata` and `episodes`.
+
+### Metadata Section
+
+This section contains general information about your podcast:
+
+- `title`: The title of your podcast.
+- `description`: A description of your podcast. Markdown is supported.
+- `link`: The URL of the main website for your podcast. This is also the default link for episodes if an episode-specific link is not provided.
+- `rss_feed_url`: The public URL where your generated `podcast_feed.xml` will be hosted. (Required)
+- `language`: The language of the podcast (e.g., `en-us`). Default: `en-us`.
+- `email`: The contact email for the podcast owner (Required). The old key `itunes_email` is supported for backward compatibility.
+- `author`: The author name(s) (Required). The old key `itunes_author` is supported for backward compatibility.
+- `category`: The primary category for iTunes. The old key `itunes_category` is supported for backward compatibility.
+- `image`: The URL for the main podcast cover art (JPEG or PNG, 1400x1400 to 3000x3000 pixels). This is also the default image for episodes if an episode-specific image is not provided.
+- `explicit`: Set to `true` or `false` to indicate if the podcast contains explicit content. Default: `false`. The old key `itunes_explicit` is supported for backward compatibility.
+- `use_asset_hash_as_guid` (optional): Set to `true` to use a content hash or ETag from the asset file's headers as the episode's `<guid>`. Defaults to `false`, which uses the `asset_url` as the GUID. The script prioritizes headers in this order: `x-amz-checksum-sha256` (as `sha256:<hash>`), `x-goog-hash` (extracting `md5:<base64_hash>`), then the full `ETag` value (as `etag:<value>`, including multipart suffixes). If none of these are found, it falls back to `asset_url`. **Warning:** Setting this to `true` means any change to the asset file (re-encoding, editing, or re-uploading even with identical content but different parameters) will likely change the hash/ETag and thus the GUID, causing subscribers to re-download the episode. This deviates from the standard expectation of GUID permanence.
+- `copyright` (optional): A string containing the copyright notice for the podcast.
+
+### Episodes Section
+
+This section is a list of your podcast episodes. Each episode is an object with the following fields:
+
+- `title`: The title of the episode.
+- `description`: A description of the episode. Markdown is supported.
+- `publication_date`: The date and time the episode was published, in ISO 8601 format (e.g., `2023-01-15T10:00:00Z`). Episodes with future dates will not be included in the feed.
+- `asset_url`: The direct URL to the audio or video file for the episode.
+- `link` (optional): The URL for a webpage specific to this episode. If omitted, the global `link` from the `metadata` section is used.
+- `image` (optional): The URL for artwork specific to this episode (same format requirements as the main podcast image). If omitted, the global `image` from the `metadata` section is used.
+- `episode` (optional): The episode number (integer).
+- `season` (optional): The season number (integer).
+- `episode_type` (optional): Can be `full` (default), `trailer`, or `bonus`.
+- `transcripts` (optional): A list of transcript files associated with the episode. Each item in the list is an object with:
+  - `url`: (Required) The direct URL to the transcript file.
+  - `type`: (Required) The MIME type of the transcript file (e.g., `application/x-subrip`, `text/vtt`, `application/json`, `text/plain`, `text/html`).
+  - `language` (optional): The language code (e.g., `en`, `es`) for the transcript.
+  - `rel` (optional): The relationship of the transcript file (e.g., `captions`).
 
 2. **Generate the RSS Feed**
 
@@ -179,7 +218,6 @@ jobs:
 - `input_file`: Path to the input YAML file. Default: `podcast_config.yaml`.
 - `output_file`: Path for the generated RSS feed XML file. Default: `podcast_feed.xml`.
 
-
 ## Running Tests
 
 To run unit tests, use:
@@ -191,6 +229,7 @@ $ python -m unittest discover tests
 ## Contributing
 
 Contributions to this project are welcome! Please follow these steps:
+
 1. Fork the repository.
 2. Create a new branch for your feature.
 3. Commit your changes.
