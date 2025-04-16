@@ -297,10 +297,16 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
     for episode in config["episodes"]:
         print(f"Processing episode {episode['title']}...")
 
-        # Don't pre-publish episodes
-        # Replace 'Z' with '+00:00' for Python < 3.11 compatibility with fromisoformat
+        # Replace \'Z\' with \'+00:00\' for Python < 3.11 compatibility with fromisoformat
         pub_date_str = episode["publication_date"].replace("Z", "+00:00")
-        if not datetime.fromisoformat(pub_date_str) < datetime.now(timezone.utc):
+        # Parse the date string
+        pub_date = datetime.fromisoformat(pub_date_str)
+        # If the parsed date is naive (no timezone info), assume it's UTC
+        if pub_date.tzinfo is None:
+            pub_date = pub_date.replace(tzinfo=timezone.utc)
+
+        # Now compare the timezone-aware publication date with the current UTC time
+        if not pub_date < datetime.now(timezone.utc):
             print(
                 f"Skipping episode {episode['title']} as it's not scheduled to be released until {episode['publication_date']}."
             )
