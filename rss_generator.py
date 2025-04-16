@@ -68,7 +68,9 @@ def read_podcast_config(yaml_file_path):
 
 
 def convert_iso_to_rfc2822(iso_date):
-    date_obj = datetime.fromisoformat(iso_date)
+    # Replace 'Z' with '+00:00' for Python < 3.11 compatibility
+    compatible_iso_date = iso_date.replace("Z", "+00:00")
+    date_obj = datetime.fromisoformat(compatible_iso_date)
     return format_datetime(date_obj)
 
 
