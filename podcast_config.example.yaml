@@ -12,6 +12,12 @@ metadata:
   explicit: false
   use_asset_hash_as_guid: false # Default: Use asset_url. Set to true to use content hash (SHA256/MD5/ETag).
   copyright: "© 2024 Your Name/Company" # Optional copyright notice
+  # --- Podcast Standards Project Recommended Tags --- #
+  podcast_locked: "no" # "yes" or "no". Prevents feed import by other platforms without owner confirmation (uses email above).
+  # podcast_guid: "YOUR-PODCAST-GUID-HERE" # A unique, permanent ID for the entire podcast (UUID recommended).
+                                            # If omitted, a GUID will be generated based on rss_feed_url.
+                                            # Generate one using: python -c "import uuid; print(uuid.uuid4())" or an online generator.
+                                            # Example: 9b024349-ccf0-5f69-a609-6b82873eab3c
 
 episodes:
   - title: "Episode 1: The Beginning"

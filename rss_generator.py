@@ -5,6 +5,7 @@ import argparse
 import time
 import os
 import re
+import uuid
 
 import markdown
 import requests
@@ -226,15 +227,29 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
     metadata = config["metadata"]
 
     # Helper function to get metadata with backward compatibility
-    def get_meta(key, old_key, required=False, default=None):
-        value = metadata.get(key, metadata.get(old_key))
+    def get_meta(key, old_key=None, required=False, default=None):
+        # If old_key is not provided, use key itself for checking
+        check_keys = [key]
+        if old_key:
+            check_keys.append(old_key)
+
+        value = None
+        for k in check_keys:
+            value = metadata.get(k)
+            if value is not None:
+                break # Found a value
+
         if required and value is None:
-            raise ValueError(f"Missing required metadata key: '{key}' or '{old_key}'")
+            key_str = f"'{key}'"
+            if old_key:
+                key_str += f" or '{old_key}'"
+            raise ValueError(f"Missing required metadata key: {key_str}")
+
         return value if value is not None else default
 
     ET.SubElement(channel, "title").text = metadata[
         "title"
-    ]  # Title is fundamental, no old key
+    ]  # Title is fundamental, no old key needed
     ET.SubElement(channel, "description").text = format_description(
         metadata["description"]
     )
@@ -290,6 +305,24 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
     copyright_val = metadata.get("copyright")
     if copyright_val:
         ET.SubElement(channel, "copyright").text = copyright_val
+
+    # Recommended Channel Elements (Podcast Standards Project)
+    # podcast:locked
+    locked_val = get_meta("podcast_locked", default="no") # Default to 'no' (false)
+    # Ensure the value is either 'yes' or 'no'
+    locked_text = "yes" if str(locked_val).lower() == "true" or str(locked_val).lower() == "yes" else "no"
+    ET.SubElement(channel, "podcast:locked", owner=email_val).text = locked_text # Requires owner email
+
+    # podcast:guid
+    # Prefer explicitly defined GUID in config, otherwise generate based on feed URL
+    guid_val = get_meta("podcast_guid")
+    if not guid_val:
+        feed_url_val = get_meta("rss_feed_url", required=True) # Feed URL is required anyway
+        # Generate UUID v5 based on the feed URL namespace
+        guid_val = str(uuid.uuid5(uuid.NAMESPACE_URL, feed_url_val))
+        print(f"Warning: podcast_guid not found in metadata. Generated GUID: {guid_val}")
+        print("It is recommended to explicitly set podcast_guid in your config file.")
+    ET.SubElement(channel, "podcast:guid").text = guid_val
 
     # --- Episode Processing --- (Add transcript logic)
     use_hash_guid = metadata.get("use_asset_hash_as_guid", False)
@@ -351,9 +384,15 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
             length=str(file_info.get("content-length", "0")),
         )
 
-        # Apply global itunes:explicit setting to each episode
-        itunes_explicit = ET.SubElement(item, "itunes:explicit")
-        itunes_explicit.text = global_explicit
+        # Apply itunes:explicit setting (check episode first, then global)
+        episode_explicit_val = episode.get("explicit", episode.get("itunes_explicit"))
+        if episode_explicit_val is not None:
+            # Use episode-specific value if present
+            explicit_text_item = "yes" if episode_explicit_val else "no"
+        else:
+            # Fallback to global setting
+            explicit_text_item = global_explicit
+        ET.SubElement(item, "itunes:explicit").text = explicit_text_item
 
         # Add itunes:duration tag if available
         if file_info.get("duration") is not None:
