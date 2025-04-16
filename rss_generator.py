@@ -296,9 +296,9 @@ def generate_rss(config, output_file_path):
         print(f"Processing episode {episode['title']}...")
 
         # Don't pre-publish episodes
-        if not datetime.fromisoformat(episode["publication_date"]) < datetime.now(
-            timezone.utc
-        ):
+        # Replace 'Z' with '+00:00' for Python < 3.11 compatibility with fromisoformat
+        pub_date_str = episode["publication_date"].replace("Z", "+00:00")
+        if not datetime.fromisoformat(pub_date_str) < datetime.now(timezone.utc):
             print(
                 f"Skipping episode {episode['title']} as it's not scheduled to be released until {episode['publication_date']}."
             )
@@ -307,7 +307,7 @@ def generate_rss(config, output_file_path):
         file_info = get_file_info(episode["asset_url"])
         item = ET.SubElement(channel, "item")
         ET.SubElement(item, "pubDate").text = convert_iso_to_rfc2822(
-            episode["publication_date"]
+            pub_date_str
         )
         ET.SubElement(item, "title").text = episode["title"]
         ET.SubElement(item, "description").text = format_description(

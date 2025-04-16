@@ -46,3 +46,10 @@ jobs:
       - name: Run tests
         run: |
           python -m unittest discover tests
+
+      - name: Upload Test Feed Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-podcast-feed
+          path: test_podcast_feed_new_keys.xml
+          if-no-files-found: error # Optional: error if the file isn't found
