@@ -63,6 +63,23 @@ class MockResponse:
         }
 
 
+def _escape_cdata(text):
+    try:
+        if "&" in text:
+            text = text.replace("&", "&amp;")
+        # Don't excape lt and gt in CDATA
+        # if "<" in text:
+        # text = text.replace("<", "&lt;")
+        # if ">" in text:
+        # text = text.replace(">", "&gt;")
+        return text
+    except TypeError:
+        raise TypeError(
+            "cannot serialize %r (type %s)" % (text, type(text).__name__)
+        )
+ET._escape_cdata = _escape_cdata
+
+
 def read_podcast_config(yaml_file_path):
     with open(yaml_file_path, "r", encoding="utf-8") as file:
         return yaml.safe_load(file)
