@@ -10,8 +10,21 @@ import uuid
 import markdown
 import requests
 import yaml
+import html
 from sh import ffprobe, ErrorReturnCode
 from retry import retry
+
+# Fix CDATA delimiter escaping
+def _escape_cdata(text):
+    try:
+        if "&" in text:
+            text = text.replace("&", "&amp;")
+        # Don't escape < and > in CDATA per RSS spec
+        return text
+    except TypeError:
+        raise TypeError("cannot serialize %r (type %s)" % (text, type(text).__name__))
+
+ET._escape_cdata = _escape_cdata
 
 # Flag to indicate if we're in test mode
 TEST_MODE = os.environ.get("RSS_GENERATOR_TEST_MODE", "false").lower() == "true"
@@ -61,23 +74,6 @@ class MockResponse:
             # 'x-amz-checksum-sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
             # 'x-goog-hash': 'crc32c=AAAAAA==,md5=1B2M2Y8AsgTpgAmY7PhCfg==' # Base64 MD5
         }
-
-
-def _escape_cdata(text):
-    try:
-        if "&" in text:
-            text = text.replace("&", "&amp;")
-        # Don't excape lt and gt in CDATA
-        # if "<" in text:
-        # text = text.replace("<", "&lt;")
-        # if ">" in text:
-        # text = text.replace(">", "&gt;")
-        return text
-    except TypeError:
-        raise TypeError(
-            "cannot serialize %r (type %s)" % (text, type(text).__name__)
-        )
-ET._escape_cdata = _escape_cdata
 
 
 def read_podcast_config(yaml_file_path):
@@ -201,18 +197,22 @@ def get_file_info(url):
 
 
 def format_description(description):
-    """
-    Convert Markdown description to HTML
-    """
+    """Convert Markdown to HTML with proper CDATA handling per RSS standards"""
     html_description = markdown.markdown(description)
-    wrapped_description = f"<![CDATA[{html_description}]]>"
+    # Unescape HTML entities since CDATA should contain literal characters
+    unescaped_html = html.unescape(html_description)
+    wrapped_description = f"<![CDATA[{unescaped_html}]]>"
 
-    # Ensure byte limit for the channel description
+    # Handle byte limit
     byte_limit = 4000
     if len(wrapped_description.encode("utf-8")) > byte_limit:
-        # Truncate the description if it exceeds the limit
-        # Note: Truncation logic might need to be more sophisticated to handle HTML correctly
-        wrapped_description = wrapped_description[:byte_limit]
+        content_length = byte_limit - len("<![CDATA[]]>".encode("utf-8"))
+        if content_length > 0:
+            truncated_content = unescaped_html[:content_length]
+            # Avoid breaking HTML tags
+            if '<' in truncated_content and '>' not in truncated_content[truncated_content.rfind('<'):]:
+                truncated_content = truncated_content[:truncated_content.rfind('<')]
+            wrapped_description = f"<![CDATA[{truncated_content}]]>"
 
     return wrapped_description
 

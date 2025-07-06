@@ -1,7 +1,7 @@
 ---
 metadata:
   title: "My Awesome Podcast"
-  description: "A podcast about technology and programming."
+  description: "A podcast about technology & programming."
   link: "https://example.com/podcast" # Fallback link
   rss_feed_url: "https://example.com/podcast/feed.xml"
   language: "en-us"
@@ -36,7 +36,7 @@ episodes:
         language: "en" # Optional: Language code (e.g., "en", "en-US", "es"). Follows RFC 5646.
 
   - title: "Episode 2: Deep Dive into Python"
-    description: "Exploring advanced Python features."
+    description: "Exploring advanced Python features & common pitfalls."
     publication_date: "2023-01-22T10:00:00Z"
     asset_url: "https://example.com/podcast/episodes/episode2.mp3"
     link: "https://example.com/podcast/episodes/2" # Episode-specific link
