@@ -1,4 +1,5 @@
 import os
+import re
 import unittest
 from xml.etree import ElementTree as ET
 from unittest.mock import patch, MagicMock
@@ -386,6 +387,16 @@ class TestRSSGenerator(unittest.TestCase):
 
         if os.path.exists("test_naive_date_feed.xml"):
             os.remove("test_naive_date_feed.xml")
+
+    def test_description_escaping(self):
+        with open("test_podcast_feed_new_keys.xml", "r") as f:
+            xml_feed = f.read()
+        # check for correct CDATA escaping
+        description_tag_pattern = re.compile(r"<description>(.*?)</description>")
+        items = description_tag_pattern.findall(xml_feed)
+        self.assertEqual(items[0], "<![CDATA[<p>A podcast about technology &amp; programming.</p>]]>")
+        self.assertEqual(items[1], "<![CDATA[<p>Introduction to the podcast.</p>]]>")
+
 
     @classmethod
     def tearDownClass(cls):
