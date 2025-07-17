@@ -1,25 +1,36 @@
 name: 'Podcast RSS Generator'
-description: 'Generates a podcast RSS feed from a YAML configuration'
+description: 'Generates a podcast RSS feed from a YAML configuration file with validation and asset verification'
 author: 'Viktor Petersson'
 branding:
   icon: 'rss'
   color: 'purple'
 
+inputs:
+  input_file:
+    description: 'Path to the input YAML configuration file containing podcast metadata and episodes'
+    required: true
+    default: 'podcast_config.yaml'
+  output_file:
+    description: 'Path to the output XML RSS feed file to be generated'
+    required: true
+    default: 'podcast_feed.xml'
+  skip_asset_verification:
+    description: 'Skip HTTP HEAD and ffprobe checks for asset URLs (useful for testing with fake URLs)'
+    required: false
+    default: 'false'
+  dry_run:
+    description: 'Validate configuration file only without generating the RSS feed'
+    required: false
+    default: 'false'
+
 runs:
   using: 'docker'
   image: 'Dockerfile'
+  env:
+    INPUT_SKIP_ASSET_VERIFICATION: ${{ inputs.skip_asset_verification }}
+    INPUT_DRY_RUN: ${{ inputs.dry_run }}
   args:
     - "--input-file"
     - ${{ inputs.input_file }}
     - "--output-file"
     - ${{ inputs.output_file }}
-
-inputs:
-  input_file:
-    description: 'Input YAML file'
-    required: true
-    default: 'podcast_config.yaml'
-  output_file:
-    description: 'Output XML file'
-    required: true
-    default: 'podcast_feed.xml'

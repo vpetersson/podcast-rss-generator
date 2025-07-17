@@ -6,6 +6,7 @@ import time
 import re
 import uuid
 import sys
+import os
 from urllib.parse import urlparse
 
 import markdown
@@ -673,6 +674,13 @@ def main():
 
     # Parse arguments from the command line
     args = parser.parse_args()
+
+    # Check for GitHub Actions environment variables and override if present
+    if os.environ.get("INPUT_SKIP_ASSET_VERIFICATION", "").lower() == "true":
+        args.skip_asset_verification = True
+
+    if os.environ.get("INPUT_DRY_RUN", "").lower() == "true":
+        args.dry_run = True
 
     print(f"Input file: {args.input_file}")
     if not args.dry_run:
