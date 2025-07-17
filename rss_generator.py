@@ -290,30 +290,30 @@ def validate_config(config):
 
     for i, episode in enumerate(episodes):
         if not isinstance(episode, dict):
-            errors.append(f"Episode {i+1} must be a dictionary")
+            errors.append(f"Episode {i + 1} must be a dictionary")
             continue
 
         # Check required fields
         for field in required_episode_fields:
             if field not in episode:
-                errors.append(f"Episode {i+1}: Missing required field '{field}'")
+                errors.append(f"Episode {i + 1}: Missing required field '{field}'")
             elif not isinstance(episode[field], str) or not episode[field].strip():
                 errors.append(
-                    f"Episode {i+1}: Field '{field}' must be a non-empty string"
+                    f"Episode {i + 1}: Field '{field}' must be a non-empty string"
                 )
 
         # Validate publication date
         if "publication_date" in episode:
             if not is_valid_iso_date(episode["publication_date"]):
                 errors.append(
-                    f"Episode {i+1}: Invalid publication_date format '{episode['publication_date']}' (must be ISO format like '2023-01-15T10:00:00Z')"
+                    f"Episode {i + 1}: Invalid publication_date format '{episode['publication_date']}' (must be ISO format like '2023-01-15T10:00:00Z')"
                 )
 
         # Validate asset_url
         if "asset_url" in episode:
             if not is_valid_url(episode["asset_url"]):
                 errors.append(
-                    f"Episode {i+1}: Invalid asset_url format '{episode['asset_url']}'"
+                    f"Episode {i + 1}: Invalid asset_url format '{episode['asset_url']}'"
                 )
 
         # Validate optional URL fields
@@ -322,28 +322,28 @@ def validate_config(config):
             if field in episode and episode[field]:
                 if not is_valid_url(episode[field]):
                     errors.append(
-                        f"Episode {i+1}: Invalid URL format in field '{field}': '{episode[field]}'"
+                        f"Episode {i + 1}: Invalid URL format in field '{field}': '{episode[field]}'"
                     )
 
         # Validate episode number
         if "episode" in episode:
             if not isinstance(episode["episode"], int) or episode["episode"] < 1:
                 errors.append(
-                    f"Episode {i+1}: Field 'episode' must be a positive integer"
+                    f"Episode {i + 1}: Field 'episode' must be a positive integer"
                 )
 
         # Validate season number
         if "season" in episode:
             if not isinstance(episode["season"], int) or episode["season"] < 1:
                 errors.append(
-                    f"Episode {i+1}: Field 'season' must be a positive integer"
+                    f"Episode {i + 1}: Field 'season' must be a positive integer"
                 )
 
         # Validate episode type
         if "episode_type" in episode:
             if episode["episode_type"] not in valid_episode_types:
                 errors.append(
-                    f"Episode {i+1}: Invalid episode_type '{episode['episode_type']}' (must be one of: {', '.join(valid_episode_types)})"
+                    f"Episode {i + 1}: Invalid episode_type '{episode['episode_type']}' (must be one of: {', '.join(valid_episode_types)})"
                 )
 
         # Validate boolean fields
@@ -351,41 +351,41 @@ def validate_config(config):
         for field in episode_boolean_fields:
             if field in episode and not isinstance(episode[field], bool):
                 errors.append(
-                    f"Episode {i+1}: Field '{field}' must be a boolean (true/false)"
+                    f"Episode {i + 1}: Field '{field}' must be a boolean (true/false)"
                 )
 
         # Validate transcripts
         if "transcripts" in episode:
             if not isinstance(episode["transcripts"], list):
-                errors.append(f"Episode {i+1}: Field 'transcripts' must be a list")
+                errors.append(f"Episode {i + 1}: Field 'transcripts' must be a list")
             else:
                 for j, transcript in enumerate(episode["transcripts"]):
                     if not isinstance(transcript, dict):
                         errors.append(
-                            f"Episode {i+1}: Transcript {j+1} must be a dictionary"
+                            f"Episode {i + 1}: Transcript {j + 1} must be a dictionary"
                         )
                         continue
 
                     # Check required transcript fields
                     if "url" not in transcript:
                         errors.append(
-                            f"Episode {i+1}: Transcript {j+1} missing required field 'url'"
+                            f"Episode {i + 1}: Transcript {j + 1} missing required field 'url'"
                         )
                     elif not is_valid_url(transcript["url"]):
                         errors.append(
-                            f"Episode {i+1}: Transcript {j+1} has invalid URL format: '{transcript['url']}'"
+                            f"Episode {i + 1}: Transcript {j + 1} has invalid URL format: '{transcript['url']}'"
                         )
 
                     if "type" not in transcript:
                         errors.append(
-                            f"Episode {i+1}: Transcript {j+1} missing required field 'type'"
+                            f"Episode {i + 1}: Transcript {j + 1} missing required field 'type'"
                         )
                     elif (
                         not isinstance(transcript["type"], str)
                         or not transcript["type"].strip()
                     ):
                         errors.append(
-                            f"Episode {i+1}: Transcript {j+1} field 'type' must be a non-empty string"
+                            f"Episode {i + 1}: Transcript {j + 1} field 'type' must be a non-empty string"
                         )
 
     return len(errors) == 0, errors

@@ -71,9 +71,10 @@ class TestRSSGenerator(unittest.TestCase):
         cls.config = read_podcast_config(CONFIG_FILE)
 
         # --- Generate feed based on the example config (using new keys) ---
-        with patch("rss_generator._make_http_request") as mock_http, patch(
-            "rss_generator._run_ffprobe_with_retry"
-        ) as mock_ffprobe:
+        with (
+            patch("rss_generator._make_http_request") as mock_http,
+            patch("rss_generator._run_ffprobe_with_retry") as mock_ffprobe,
+        ):
             mock_http.return_value = MockResponse("http://example.com/test.mp3")
             mock_ffprobe.return_value = MOCK_FFPROBE_OUTPUT
 
@@ -92,9 +93,10 @@ class TestRSSGenerator(unittest.TestCase):
         metadata_old["itunes_explicit"] = metadata_old.pop("explicit")
         # image key remains 'image'
 
-        with patch("rss_generator._make_http_request") as mock_http, patch(
-            "rss_generator._run_ffprobe_with_retry"
-        ) as mock_ffprobe:
+        with (
+            patch("rss_generator._make_http_request") as mock_http,
+            patch("rss_generator._run_ffprobe_with_retry") as mock_ffprobe,
+        ):
             mock_http.return_value = MockResponse("http://example.com/test.mp3")
             mock_ffprobe.return_value = MOCK_FFPROBE_OUTPUT
 
@@ -235,46 +237,46 @@ class TestRSSGenerator(unittest.TestCase):
                     self.assertEqual(
                         tag_new.get("url"),
                         transcript_config["url"],
-                        f"[New Keys] Episode '{title}' transcript {i+1} URL mismatch",
+                        f"[New Keys] Episode '{title}' transcript {i + 1} URL mismatch",
                     )
                     self.assertEqual(
                         tag_new.get("type"),
                         transcript_config["type"],
-                        f"[New Keys] Episode '{title}' transcript {i+1} type mismatch",
+                        f"[New Keys] Episode '{title}' transcript {i + 1} type mismatch",
                     )
                     if "language" in transcript_config:
                         self.assertEqual(
                             tag_new.get("language"),
                             transcript_config["language"],
-                            f"[New Keys] Episode '{title}' transcript {i+1} language mismatch",
+                            f"[New Keys] Episode '{title}' transcript {i + 1} language mismatch",
                         )
                     else:
                         self.assertIsNone(
                             tag_new.get("language"),
-                            f"[New Keys] Episode '{title}' transcript {i+1} should not have language",
+                            f"[New Keys] Episode '{title}' transcript {i + 1} should not have language",
                         )
 
                     # Check Old Keys Feed (assuming transcript logic remains the same)
                     self.assertEqual(
                         tag_old.get("url"),
                         transcript_config["url"],
-                        f"[Old Keys] Episode '{title}' transcript {i+1} URL mismatch",
+                        f"[Old Keys] Episode '{title}' transcript {i + 1} URL mismatch",
                     )
                     self.assertEqual(
                         tag_old.get("type"),
                         transcript_config["type"],
-                        f"[Old Keys] Episode '{title}' transcript {i+1} type mismatch",
+                        f"[Old Keys] Episode '{title}' transcript {i + 1} type mismatch",
                     )
                     if "language" in transcript_config:
                         self.assertEqual(
                             tag_old.get("language"),
                             transcript_config["language"],
-                            f"[Old Keys] Episode '{title}' transcript {i+1} language mismatch",
+                            f"[Old Keys] Episode '{title}' transcript {i + 1} language mismatch",
                         )
                     else:
                         self.assertIsNone(
                             tag_old.get("language"),
-                            f"[Old Keys] Episode '{title}' transcript {i+1} should not have language",
+                            f"[Old Keys] Episode '{title}' transcript {i + 1} should not have language",
                         )
 
     def test_episode_itunes_tags(self):
@@ -286,7 +288,7 @@ class TestRSSGenerator(unittest.TestCase):
                 itunes_episode = item.find("itunes:episode", self.ns)
                 self.assertIsNotNone(
                     itunes_episode,
-                    f"[New Keys] Missing itunes:episode tag in episode {i+1} when config has 'episode' key",
+                    f"[New Keys] Missing itunes:episode tag in episode {i + 1} when config has 'episode' key",
                 )
                 self.assertEqual(str(episode_config["episode"]), itunes_episode.text)
 
@@ -294,7 +296,7 @@ class TestRSSGenerator(unittest.TestCase):
                 itunes_season = item.find("itunes:season", self.ns)
                 self.assertIsNotNone(
                     itunes_season,
-                    f"[New Keys] Missing itunes:season tag in episode {i+1} when config has 'season' key",
+                    f"[New Keys] Missing itunes:season tag in episode {i + 1} when config has 'season' key",
                 )
                 self.assertEqual(str(episode_config["season"]), itunes_season.text)
 
@@ -302,7 +304,7 @@ class TestRSSGenerator(unittest.TestCase):
                 itunes_episode_type = item.find("itunes:episodeType", self.ns)
                 self.assertIsNotNone(
                     itunes_episode_type,
-                    f"[New Keys] Missing itunes:episodeType tag in episode {i+1} when config has 'episode_type' key",
+                    f"[New Keys] Missing itunes:episodeType tag in episode {i + 1} when config has 'episode_type' key",
                 )
                 self.assertEqual(
                     episode_config["episode_type"], itunes_episode_type.text
@@ -323,20 +325,20 @@ class TestRSSGenerator(unittest.TestCase):
             episode_config = self.config["episodes"][i]
             item_image = item.find("itunes:image", self.ns)
             self.assertIsNotNone(
-                item_image, f"[New Keys] Episode {i+1} missing itunes:image tag"
+                item_image, f"[New Keys] Episode {i + 1} missing itunes:image tag"
             )
             item_image_url = item_image.get("href")
             if "image" in episode_config:
                 self.assertEqual(
                     item_image_url,
                     episode_config["image"],
-                    f"[New Keys] Episode {i+1} specific image URL mismatch",
+                    f"[New Keys] Episode {i + 1} specific image URL mismatch",
                 )
             else:
                 self.assertEqual(
                     item_image_url,
                     channel_image_url_new,
-                    f"[New Keys] Episode {i+1} fallback image URL mismatch",
+                    f"[New Keys] Episode {i + 1} fallback image URL mismatch",
                 )
 
         # Test with Old Keys feed
@@ -349,7 +351,7 @@ class TestRSSGenerator(unittest.TestCase):
             ]  # Use old config for checking episode key
             item_image = item.find("itunes:image", self.ns)
             self.assertIsNotNone(
-                item_image, f"[Old Keys] Episode {i+1} missing itunes:image tag"
+                item_image, f"[Old Keys] Episode {i + 1} missing itunes:image tag"
             )
             item_image_url = item_image.get("href")
             if (
@@ -358,13 +360,13 @@ class TestRSSGenerator(unittest.TestCase):
                 self.assertEqual(
                     item_image_url,
                     episode_config["image"],
-                    f"[Old Keys] Episode {i+1} specific image URL mismatch",
+                    f"[Old Keys] Episode {i + 1} specific image URL mismatch",
                 )
             else:
                 self.assertEqual(
                     item_image_url,
                     channel_image_url_old,
-                    f"[Old Keys] Episode {i+1} fallback image URL mismatch",
+                    f"[Old Keys] Episode {i + 1} fallback image URL mismatch",
                 )
 
     def test_date_conversion(self):
@@ -376,9 +378,10 @@ class TestRSSGenerator(unittest.TestCase):
 
     def test_file_info_retrieval(self):
         # Test on new keys config (should be same for old)
-        with patch("rss_generator._make_http_request") as mock_http, patch(
-            "rss_generator._run_ffprobe_with_retry"
-        ) as mock_ffprobe:
+        with (
+            patch("rss_generator._make_http_request") as mock_http,
+            patch("rss_generator._run_ffprobe_with_retry") as mock_ffprobe,
+        ):
             mock_http.return_value = MockResponse("http://example.com/test.mp3")
             mock_ffprobe.return_value = MOCK_FFPROBE_OUTPUT
 
@@ -468,11 +471,14 @@ class TestRSSGenerator(unittest.TestCase):
 
                 # We patch _make_http_request which is called by get_file_info
                 # We also need to patch _run_ffprobe_with_retry to avoid external calls
-                with patch(
-                    "rss_generator._make_http_request", return_value=mock_response
-                ), patch(
-                    "rss_generator._run_ffprobe_with_retry",
-                    return_value='streams.stream.0.duration="123"',
+                with (
+                    patch(
+                        "rss_generator._make_http_request", return_value=mock_response
+                    ),
+                    patch(
+                        "rss_generator._run_ffprobe_with_retry",
+                        return_value='streams.stream.0.duration="123"',
+                    ),
                 ):
                     output_filename = f"test_guid_{description.replace(' ', '_')}.xml"
                     generate_rss(test_config, output_filename)
