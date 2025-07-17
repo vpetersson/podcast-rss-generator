@@ -3,9 +3,10 @@ from datetime import datetime, timezone
 from email.utils import format_datetime
 import argparse
 import time
-import os
 import re
 import uuid
+import sys
+from urllib.parse import urlparse
 
 import markdown
 import requests
@@ -13,6 +14,7 @@ import yaml
 import html
 from sh import ffprobe, ErrorReturnCode
 from retry import retry
+
 
 # Fix CDATA delimiter escaping
 def _escape_cdata(text):
@@ -24,56 +26,8 @@ def _escape_cdata(text):
     except TypeError:
         raise TypeError("cannot serialize %r (type %s)" % (text, type(text).__name__))
 
+
 ET._escape_cdata = _escape_cdata
-
-# Flag to indicate if we're in test mode
-TEST_MODE = os.environ.get("RSS_GENERATOR_TEST_MODE", "false").lower() == "true"
-
-# Mock ffprobe output for testing
-MOCK_FFPROBE_OUTPUT = """streams.stream.0.index=0
-streams.stream.0.codec_name="aac"
-streams.stream.0.codec_long_name="AAC (Advanced Audio Coding)"
-streams.stream.0.profile="LC"
-streams.stream.0.codec_type="audio"
-streams.stream.0.codec_tag_string="mp4a"
-streams.stream.0.codec_tag="0x6134706d"
-streams.stream.0.sample_fmt="fltp"
-streams.stream.0.sample_rate="44100"
-streams.stream.0.channels=2
-streams.stream.0.channel_layout="stereo"
-streams.stream.0.bits_per_sample=0
-streams.stream.0.initial_padding=0
-streams.stream.0.id="0x1"
-streams.stream.0.r_frame_rate="0/0"
-streams.stream.0.avg_frame_rate="0/0"
-streams.stream.0.time_base="1/44100"
-streams.stream.0.start_pts=0
-streams.stream.0.start_time="0.000000"
-streams.stream.0.duration_ts=156170240
-streams.stream.0.duration="3541.275283"
-streams.stream.0.bit_rate="107301"
-streams.stream.0.max_bit_rate="N/A"
-streams.stream.0.bits_per_raw_sample="N/A"
-streams.stream.0.nb_frames="152510"
-streams.stream.0.nb_read_frames="N/A"
-streams.stream.0.nb_read_packets="N/A"
-streams.stream.0.extradata_size=2
-streams.stream.0.disposition.default=1"""
-
-
-# Mock HTTP response for testing
-class MockResponse:
-    def __init__(self, url):
-        self.url = url
-        self.headers = {
-            "content-length": "12345678",
-            "content-type": "audio/mpeg",
-            # Example headers for testing hash extraction
-            "ETag": '"d41d8cd98f00b204e9800998ecf8427e"',  # MD5 hash
-            # 'ETag': '"abc-1"', # Multipart ETag
-            # 'x-amz-checksum-sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-            # 'x-goog-hash': 'crc32c=AAAAAA==,md5=1B2M2Y8AsgTpgAmY7PhCfg==' # Base64 MD5
-        }
 
 
 def read_podcast_config(yaml_file_path):
@@ -91,8 +45,6 @@ def convert_iso_to_rfc2822(iso_date):
 @retry(tries=5, delay=2, backoff=2, logger=None)
 def _make_http_request(url):
     """Make HTTP request with retry logic"""
-    if TEST_MODE:
-        return MockResponse(url)
     return requests.head(url, allow_redirects=True)
 
 
@@ -100,9 +52,6 @@ def _run_ffprobe_with_retry(url, max_retries=5, delay=2):
     """
     Run ffprobe with manual retry logic to handle ErrorReturnCode exceptions
     """
-    if TEST_MODE:
-        return MOCK_FFPROBE_OUTPUT
-
     retries = 0
     while retries < max_retries:
         try:
@@ -184,8 +133,8 @@ def get_file_info(url):
 
     # 3. Check ETag (if other hashes not found)
     if not content_hash:
-        etag = headers.get("ETag", "").strip('" ') # Remove quotes and whitespace
-        if etag: # Use any non-empty ETag as a fallback hash
+        etag = headers.get("ETag", "").strip('" ')  # Remove quotes and whitespace
+        if etag:  # Use any non-empty ETag as a fallback hash
             content_hash = f"etag:{etag}"
 
     return {
@@ -197,7 +146,7 @@ def get_file_info(url):
 
 
 def format_description(description):
-    """Convert Markdown to HTML with proper CDATA handling per RSS standards"""
+    """Convert Markdown to HTML and wrap in CDATA"""
     html_description = markdown.markdown(description)
     # Unescape HTML entities since CDATA should contain literal characters
     unescaped_html = html.unescape(html_description)
@@ -210,18 +159,245 @@ def format_description(description):
         if content_length > 0:
             truncated_content = unescaped_html[:content_length]
             # Avoid breaking HTML tags
-            if '<' in truncated_content and '>' not in truncated_content[truncated_content.rfind('<'):]:
-                truncated_content = truncated_content[:truncated_content.rfind('<')]
+            if (
+                "<" in truncated_content
+                and ">" not in truncated_content[truncated_content.rfind("<") :]
+            ):
+                truncated_content = truncated_content[: truncated_content.rfind("<")]
             wrapped_description = f"<![CDATA[{truncated_content}]]>"
 
     return wrapped_description
+
+
+def is_valid_url(url):
+    """Check if a URL is valid"""
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except Exception:
+        return False
+
+
+def is_valid_email(email):
+    """Basic email validation"""
+    email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+    return re.match(email_pattern, email) is not None
+
+
+def is_valid_iso_date(date_string):
+    """Check if a date string is valid ISO format"""
+    try:
+        # Handle both 'Z' and timezone offset formats
+        compatible_date = date_string.replace("Z", "+00:00")
+        datetime.fromisoformat(compatible_date)
+        return True
+    except ValueError:
+        return False
+
+
+def validate_config(config):
+    """
+    Validate the podcast configuration file.
+    Returns a tuple (is_valid, errors) where errors is a list of error messages.
+    """
+    errors = []
+
+    # Check top-level structure
+    if not isinstance(config, dict):
+        errors.append("Config must be a dictionary")
+        return False, errors
+
+    if "metadata" not in config:
+        errors.append("Missing required 'metadata' section")
+        return False, errors
+
+    if "episodes" not in config:
+        errors.append("Missing required 'episodes' section")
+        return False, errors
+
+    metadata = config["metadata"]
+    episodes = config["episodes"]
+
+    # Validate metadata section
+    required_metadata_fields = [
+        "title",
+        "description",
+        "link",
+        "rss_feed_url",
+        "language",
+    ]
+    for field in required_metadata_fields:
+        if field not in metadata:
+            errors.append(f"Missing required metadata field: '{field}'")
+        elif not isinstance(metadata[field], str) or not metadata[field].strip():
+            errors.append(f"Metadata field '{field}' must be a non-empty string")
+
+    # Validate email field (supports both new and old format)
+    email_field = metadata.get("email") or metadata.get("itunes_email")
+    if not email_field:
+        errors.append("Missing required metadata field: 'email' (or 'itunes_email')")
+    elif not is_valid_email(email_field):
+        errors.append(f"Invalid email format: '{email_field}'")
+
+    # Validate author field (supports both new and old format)
+    author_field = metadata.get("author") or metadata.get("itunes_author")
+    if not author_field:
+        errors.append("Missing required metadata field: 'author' (or 'itunes_author')")
+    elif not isinstance(author_field, str) or not author_field.strip():
+        errors.append("Author field must be a non-empty string")
+
+    # Validate category field (supports both new and old format)
+    category_field = metadata.get("category") or metadata.get("itunes_category")
+    if category_field and (
+        not isinstance(category_field, str) or not category_field.strip()
+    ):
+        errors.append("Category field must be a non-empty string")
+
+    # Validate URLs
+    url_fields = ["link", "rss_feed_url", "image"]
+    for field in url_fields:
+        if field in metadata and metadata[field]:
+            if not is_valid_url(metadata[field]):
+                errors.append(
+                    f"Invalid URL format in metadata field '{field}': '{metadata[field]}'"
+                )
+
+    # Validate boolean fields
+    boolean_fields = ["explicit", "itunes_explicit", "use_asset_hash_as_guid"]
+    for field in boolean_fields:
+        if field in metadata and not isinstance(metadata[field], bool):
+            errors.append(f"Metadata field '{field}' must be a boolean (true/false)")
+
+    # Validate podcast_locked field
+    if "podcast_locked" in metadata:
+        locked_val = metadata["podcast_locked"]
+        if locked_val not in ["yes", "no", True, False]:
+            errors.append(
+                "Metadata field 'podcast_locked' must be 'yes', 'no', true, or false"
+            )
+
+    # Validate episodes section
+    if not isinstance(episodes, list):
+        errors.append("Episodes section must be a list")
+        return False, errors
+
+    if len(episodes) == 0:
+        errors.append("At least one episode is required")
+
+    # Validate each episode
+    required_episode_fields = ["title", "description", "publication_date", "asset_url"]
+    valid_episode_types = ["full", "trailer", "bonus"]
+
+    for i, episode in enumerate(episodes):
+        if not isinstance(episode, dict):
+            errors.append(f"Episode {i+1} must be a dictionary")
+            continue
+
+        # Check required fields
+        for field in required_episode_fields:
+            if field not in episode:
+                errors.append(f"Episode {i+1}: Missing required field '{field}'")
+            elif not isinstance(episode[field], str) or not episode[field].strip():
+                errors.append(
+                    f"Episode {i+1}: Field '{field}' must be a non-empty string"
+                )
+
+        # Validate publication date
+        if "publication_date" in episode:
+            if not is_valid_iso_date(episode["publication_date"]):
+                errors.append(
+                    f"Episode {i+1}: Invalid publication_date format '{episode['publication_date']}' (must be ISO format like '2023-01-15T10:00:00Z')"
+                )
+
+        # Validate asset_url
+        if "asset_url" in episode:
+            if not is_valid_url(episode["asset_url"]):
+                errors.append(
+                    f"Episode {i+1}: Invalid asset_url format '{episode['asset_url']}'"
+                )
+
+        # Validate optional URL fields
+        episode_url_fields = ["link", "image"]
+        for field in episode_url_fields:
+            if field in episode and episode[field]:
+                if not is_valid_url(episode[field]):
+                    errors.append(
+                        f"Episode {i+1}: Invalid URL format in field '{field}': '{episode[field]}'"
+                    )
+
+        # Validate episode number
+        if "episode" in episode:
+            if not isinstance(episode["episode"], int) or episode["episode"] < 1:
+                errors.append(
+                    f"Episode {i+1}: Field 'episode' must be a positive integer"
+                )
+
+        # Validate season number
+        if "season" in episode:
+            if not isinstance(episode["season"], int) or episode["season"] < 1:
+                errors.append(
+                    f"Episode {i+1}: Field 'season' must be a positive integer"
+                )
+
+        # Validate episode type
+        if "episode_type" in episode:
+            if episode["episode_type"] not in valid_episode_types:
+                errors.append(
+                    f"Episode {i+1}: Invalid episode_type '{episode['episode_type']}' (must be one of: {', '.join(valid_episode_types)})"
+                )
+
+        # Validate boolean fields
+        episode_boolean_fields = ["explicit", "itunes_explicit"]
+        for field in episode_boolean_fields:
+            if field in episode and not isinstance(episode[field], bool):
+                errors.append(
+                    f"Episode {i+1}: Field '{field}' must be a boolean (true/false)"
+                )
+
+        # Validate transcripts
+        if "transcripts" in episode:
+            if not isinstance(episode["transcripts"], list):
+                errors.append(f"Episode {i+1}: Field 'transcripts' must be a list")
+            else:
+                for j, transcript in enumerate(episode["transcripts"]):
+                    if not isinstance(transcript, dict):
+                        errors.append(
+                            f"Episode {i+1}: Transcript {j+1} must be a dictionary"
+                        )
+                        continue
+
+                    # Check required transcript fields
+                    if "url" not in transcript:
+                        errors.append(
+                            f"Episode {i+1}: Transcript {j+1} missing required field 'url'"
+                        )
+                    elif not is_valid_url(transcript["url"]):
+                        errors.append(
+                            f"Episode {i+1}: Transcript {j+1} has invalid URL format: '{transcript['url']}'"
+                        )
+
+                    if "type" not in transcript:
+                        errors.append(
+                            f"Episode {i+1}: Transcript {j+1} missing required field 'type'"
+                        )
+                    elif (
+                        not isinstance(transcript["type"], str)
+                        or not transcript["type"].strip()
+                    ):
+                        errors.append(
+                            f"Episode {i+1}: Transcript {j+1} field 'type' must be a non-empty string"
+                        )
+
+    return len(errors) == 0, errors
 
 
 def generate_rss(config, output_file_path, skip_asset_verification=False):
     # --- Namespace Registration --- (Ensure podcast namespace is included)
     ET.register_namespace("itunes", "http://www.itunes.com/dtds/podcast-1.0.dtd")
     ET.register_namespace("atom", "http://www.w3.org/2005/Atom")
-    ET.register_namespace("podcast", "https://podcastindex.org/namespace/1.0") # Add podcast namespace
+    ET.register_namespace(
+        "podcast", "https://podcastindex.org/namespace/1.0"
+    )  # Add podcast namespace
 
     # --- Root Element Setup --- (Add podcast namespace attribute)
     rss = ET.Element(
@@ -230,7 +406,7 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
         attrib={
             "xmlns:itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd",
             "xmlns:atom": "http://www.w3.org/2005/Atom",
-            "xmlns:podcast": "https://podcastindex.org/namespace/1.0" # Add podcast namespace
+            "xmlns:podcast": "https://podcastindex.org/namespace/1.0",  # Add podcast namespace
         },
     )
 
@@ -254,7 +430,7 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
         for k in check_keys:
             value = metadata.get(k)
             if value is not None:
-                break # Found a value
+                break  # Found a value
 
         if required and value is None:
             key_str = f"'{key}'"
@@ -325,19 +501,29 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
 
     # Recommended Channel Elements (Podcast Standards Project)
     # podcast:locked
-    locked_val = get_meta("podcast_locked", default="no") # Default to 'no' (false)
+    locked_val = get_meta("podcast_locked", default="no")  # Default to 'no' (false)
     # Ensure the value is either 'yes' or 'no'
-    locked_text = "yes" if str(locked_val).lower() == "true" or str(locked_val).lower() == "yes" else "no"
-    ET.SubElement(channel, "podcast:locked", owner=email_val).text = locked_text # Requires owner email
+    locked_text = (
+        "yes"
+        if str(locked_val).lower() == "true" or str(locked_val).lower() == "yes"
+        else "no"
+    )
+    ET.SubElement(
+        channel, "podcast:locked", owner=email_val
+    ).text = locked_text  # Requires owner email
 
     # podcast:guid
     # Prefer explicitly defined GUID in config, otherwise generate based on feed URL
     guid_val = get_meta("podcast_guid")
     if not guid_val:
-        feed_url_val = get_meta("rss_feed_url", required=True) # Feed URL is required anyway
+        feed_url_val = get_meta(
+            "rss_feed_url", required=True
+        )  # Feed URL is required anyway
         # Generate UUID v5 based on the feed URL namespace
         guid_val = str(uuid.uuid5(uuid.NAMESPACE_URL, feed_url_val))
-        print(f"Warning: podcast_guid not found in metadata. Generated GUID: {guid_val}")
+        print(
+            f"Warning: podcast_guid not found in metadata. Generated GUID: {guid_val}"
+        )
         print("It is recommended to explicitly set podcast_guid in your config file.")
     ET.SubElement(channel, "podcast:guid").text = guid_val
 
@@ -366,8 +552,8 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
             print(f"  Skipping asset verification for {episode['asset_url']}")
             # Provide default/placeholder values
             file_info = {
-                "content-length": "0", # Required by enclosure
-                "content-type": "application/octet-stream", # Generic fallback type
+                "content-length": "0",  # Required by enclosure
+                "content-type": "application/octet-stream",  # Generic fallback type
                 "duration": None,
                 "content_hash": None,
             }
@@ -375,9 +561,7 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
             file_info = get_file_info(episode["asset_url"])
 
         item = ET.SubElement(channel, "item")
-        ET.SubElement(item, "pubDate").text = convert_iso_to_rfc2822(
-            pub_date_str
-        )
+        ET.SubElement(item, "pubDate").text = convert_iso_to_rfc2822(pub_date_str)
         ET.SubElement(item, "title").text = episode["title"]
         ET.SubElement(item, "description").text = format_description(
             episode["description"]
@@ -459,7 +643,9 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
 
                     ET.SubElement(item, "podcast:transcript", attrib=transcript_attrs)
                 else:
-                    print(f"  Skipping invalid transcript entry for episode {episode['title']}: {transcript_info}")
+                    print(
+                        f"  Skipping invalid transcript entry for episode {episode['title']}: {transcript_info}"
+                    )
 
     tree = ET.ElementTree(rss)
     tree.write(output_file_path, encoding="UTF-8", xml_declaration=True)
@@ -476,19 +662,59 @@ def main():
     )
     parser.add_argument(
         "--skip-asset-verification",
-        action="store_true", # Makes it a boolean flag
-        help="Skip HTTP HEAD and ffprobe checks for asset URLs (use for testing/fake URLs)"
+        action="store_true",  # Makes it a boolean flag
+        help="Skip HTTP HEAD and ffprobe checks for asset URLs (use for testing/fake URLs)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate configuration file only, do not generate RSS feed",
     )
 
     # Parse arguments from the command line
     args = parser.parse_args()
 
-    print(f"Input file: {args.input_file}, Output file: {args.output_file}")
+    print(f"Input file: {args.input_file}")
+    if not args.dry_run:
+        print(f"Output file: {args.output_file}")
     if args.skip_asset_verification:
         print("Skipping asset verification.")
+    if args.dry_run:
+        print("Dry-run mode: validating configuration only.")
 
-    config = read_podcast_config(args.input_file)
-    generate_rss(config, args.output_file, skip_asset_verification=args.skip_asset_verification)
+    # Read and validate config
+    try:
+        config = read_podcast_config(args.input_file)
+    except FileNotFoundError:
+        print(f"Error: Config file '{args.input_file}' not found.")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        print(f"Error: Invalid YAML syntax in '{args.input_file}':")
+        print(f"  {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error reading config file '{args.input_file}': {e}")
+        sys.exit(1)
+
+    # Validate configuration
+    is_valid, errors = validate_config(config)
+    if not is_valid:
+        print("✗ Config validation failed:")
+        for error in errors:
+            print(f"  - {error}")
+        sys.exit(1)
+
+    print("✓ Config validation passed!")
+
+    # If dry-run, stop here
+    if args.dry_run:
+        print("✓ Dry-run completed successfully.")
+        sys.exit(0)
+
+    # Generate RSS feed
+    generate_rss(
+        config, args.output_file, skip_asset_verification=args.skip_asset_verification
+    )
 
 
 if __name__ == "__main__":
