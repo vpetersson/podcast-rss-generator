@@ -277,7 +277,7 @@ docker build -t podcast-rss-generator:latest .
 To spin up a container from the built image that uses a custom config file and writes out to `myfeed.xml`.
 
 ```
-docker run --rm -v .:/opt podcast-rss-generator:latest --output-file /opt/hello.xml --input-file /opt/podcast_config.example.yaml
+docker run --rm -v .:/opt podcast-rss-generator:latest --output-file /opt/myfeed.xml --input-file /opt/custom_podcast_config.yaml
 ```
 
 N.B. The switches `-v` share files between host and container and `--rm` automatically removes the container when it exits.
