@@ -269,6 +269,16 @@ jobs:
 4. **Commit and Push Your Workflow**:
    - Once you commit this workflow file to your repository, the action will be triggered based on the defined events (e.g., on push or pull request).
 
+## Usage with Docker
+Build the image with the following and tagging with `latest`:
+```
+docker build -t podcast-rss-generator:latest .
+```
+To spin up a container from the built image that uses the example config file and writes out to `myfeed.xml`:
+```
+docker run -it --rm -v .:/var podcast-rss-generator:latest --input-file /var/podcast_config.example.yaml --output-file /var/myfeed.xml
+```
+
 ### Inputs
 
 - `input_file`: Path to the input YAML file. Default: `podcast_config.yaml`.
