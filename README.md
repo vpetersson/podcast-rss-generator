@@ -45,16 +45,27 @@ $ cd podcast-rss-generator
 
 2. **Install Dependencies**
 
+This project uses [uv](https://docs.astral.sh/uv/). It reads `.python-version`
+and installs the right interpreter itself, so no virtualenv setup is needed:
+
 ```bash
-$ pip install -r requirements.txt
+$ uv sync
 ```
 
-**Optional:** Install `yamllint`, `xq` and `flake8`.
+That installs the runtime dependencies plus the dev tools (`ruff`, `mypy`,
+`yamllint`). For runtime only, use `uv sync --no-dev`.
+
+`ffmpeg` must be on your PATH for asset duration probing. It is not required
+for `--dry-run` or `--skip-asset-verification`.
+
+**Optional:** `xq`, for validating the generated XML.
 
 ## Usage
 
+Prefix commands with `uv run` to use the locked environment:
+
 ```bash
-$ python rss_generator.py --help
+$ uv run python rss_generator.py --help
 usage: rss_generator.py [-h] [--input-file INPUT_FILE] [--output-file OUTPUT_FILE]
                         [--skip-asset-verification] [--dry-run]
 
@@ -288,11 +299,27 @@ N.B. The switches `-v` share files between host and container and `--rm` automat
 
 ## Running Tests
 
-To run unit tests, use:
+```bash
+$ uv run python -m unittest discover tests
+```
+
+## Development
+
+The same checks CI runs:
 
 ```bash
-$ python -m unittest discover tests
+$ uv run ruff check .           # lint
+$ uv run ruff format --check .  # formatting
+$ uv run mypy                   # type checking
+$ uv run python -m unittest discover tests
 ```
+
+`rss_generator.py` is type-checked under mypy's `strict` mode. The test suite
+is checked too, with a couple of allowances documented in `pyproject.toml`.
+
+Dependencies are pinned in `uv.lock`. After changing `pyproject.toml`, run
+`uv lock` and commit the result — CI installs with `--frozen` and fails if the
+lockfile is out of step.
 
 ## Contributing
 

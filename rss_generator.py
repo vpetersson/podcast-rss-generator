@@ -1,86 +1,112 @@
-import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
-from email.utils import format_datetime
 import argparse
-import time
-import re
-import uuid
-import sys
 import os
+import re
+import sys
+import time
+import uuid
+import xml.etree.ElementTree as ET
+from datetime import UTC, datetime
+from email.utils import format_datetime
+from typing import Any, TypedDict
 from urllib.parse import urlparse
 
 import markdown
 import requests
 import yaml
-import html
-from sh import ffprobe, ErrorReturnCode
 from retry import retry
 
+# How long to wait on the HEAD request for an asset. Without this, a hung
+# server stalls the whole feed build indefinitely.
+HTTP_TIMEOUT_SECONDS = 30
 
-# Fix CDATA delimiter escaping
-def _escape_cdata(text):
-    try:
-        if "&" in text:
-            text = text.replace("&", "&amp;")
-        # Don't escape < and > in CDATA per RSS spec
-        return text
-    except TypeError:
-        raise TypeError("cannot serialize %r (type %s)" % (text, type(text).__name__))
+# Apple caps <description> at 4000 bytes.
+DESCRIPTION_BYTE_LIMIT = 4000
+
+# CDATA sections are assembled as text, so ElementTree escapes the delimiters
+# along with everything else. Rather than disabling escaping globally — which
+# is what this module used to do, and which let a "<" in any title emit
+# malformed XML — the delimiters are swapped for sentinels that survive
+# serialization untouched and are restored afterwards. See _restore_cdata.
+# Randomised per run so no description can contain a sentinel by accident.
+_CDATA_TOKEN = uuid.uuid4().hex
+_CDATA_OPEN = f"@@CDATA-OPEN-{_CDATA_TOKEN}@@"
+_CDATA_CLOSE = f"@@CDATA-CLOSE-{_CDATA_TOKEN}@@"
 
 
-ET._escape_cdata = _escape_cdata
+# Declared functionally because two of the keys are the hyphenated header
+# names this module has always used; renaming them would be a breaking change
+# for anyone importing get_file_info. Every value can legitimately be None: a
+# server need not send Content-Length or Content-Type, and ffprobe may fail.
+FileInfo = TypedDict(
+    "FileInfo",
+    {
+        "content-length": str | None,
+        "content-type": str | None,
+        "duration": int | None,
+        "content_hash": str | None,
+    },
+)
 
 
-def read_podcast_config(yaml_file_path):
-    with open(yaml_file_path, "r", encoding="utf-8") as file:
+def read_podcast_config(yaml_file_path: str) -> Any:
+    with open(yaml_file_path, encoding="utf-8") as file:
         return yaml.safe_load(file)
 
 
-def convert_iso_to_rfc2822(iso_date):
+def convert_iso_to_rfc2822(iso_date: str) -> str:
     # Replace 'Z' with '+00:00' for Python < 3.11 compatibility
     compatible_iso_date = iso_date.replace("Z", "+00:00")
     date_obj = datetime.fromisoformat(compatible_iso_date)
     return format_datetime(date_obj)
 
 
-@retry(tries=5, delay=2, backoff=2, logger=None)
-def _make_http_request(url):
+@retry(tries=5, delay=2, backoff=2, logger=None)  # type: ignore[untyped-decorator]
+def _make_http_request(url: str) -> requests.Response:
     """Make HTTP request with retry logic"""
-    return requests.head(url, allow_redirects=True)
+    return requests.head(url, allow_redirects=True, timeout=HTTP_TIMEOUT_SECONDS)
 
 
-def _run_ffprobe_with_retry(url, max_retries=5, delay=2):
+def _run_ffprobe_with_retry(url: str, max_retries: int = 5, delay: int = 2) -> str:
     """
-    Run ffprobe with manual retry logic to handle ErrorReturnCode exceptions
+    Run ffprobe with manual retry logic to handle ErrorReturnCode exceptions.
+
+    Returns the probe output, or an empty string if every attempt failed.
+
+    `sh` resolves ffprobe at import time, so it is imported here rather than at
+    module level: --dry-run and --skip-asset-verification never probe anything
+    and should not require ffmpeg to be installed.
     """
-    retries = 0
-    while retries < max_retries:
+    from sh import ErrorReturnCode, ffprobe  # noqa: PLC0415
+
+    for attempt in range(1, max_retries + 1):
         try:
-            return ffprobe(
-                "-hide_banner",
-                "-v",
-                "quiet",
-                "-show_streams",
-                "-print_format",
-                "flat",
-                url,
+            return str(
+                ffprobe(
+                    "-hide_banner",
+                    "-v",
+                    "quiet",
+                    "-show_streams",
+                    "-print_format",
+                    "flat",
+                    url,
+                )
             )
         except ErrorReturnCode:
-            retries += 1
-            if retries >= max_retries:
+            if attempt >= max_retries:
                 print(
                     f"Failed to run ffprobe after {max_retries} attempts for URL: {url}"
                 )
-                # Return empty string if all retries fail
                 return ""
             print(
-                f"ffprobe failed (attempt {retries}/{max_retries}), retrying in {delay} seconds..."
+                f"ffprobe failed (attempt {attempt}/{max_retries}), "
+                f"retrying in {delay} seconds..."
             )
             time.sleep(delay)
             delay *= 2  # Exponential backoff
+    return ""
 
 
-def get_file_info(url):
+def get_file_info(url: str) -> FileInfo:
     # Make HTTP request with retry logic
     response = _make_http_request(url)
 
@@ -91,12 +117,14 @@ def get_file_info(url):
     # Run ffprobe with retry logic
     probe = _run_ffprobe_with_retry(response.url)
 
-    # If probe is empty (all retries failed), set duration to None
+    # If probe is empty (all retries failed), set duration to None.
+    # content_hash is included so callers can rely on the key always existing.
     if not probe:
         return {
             "content-length": response.headers.get("content-length"),
             "content-type": response.headers.get("content-type"),
             "duration": None,
+            "content_hash": None,
         }
 
     lines = probe.split("\n")
@@ -146,32 +174,87 @@ def get_file_info(url):
     }
 
 
-def format_description(description):
-    """Convert Markdown to HTML and wrap in CDATA"""
-    html_description = markdown.markdown(description)
-    # Unescape HTML entities since CDATA should contain literal characters
-    unescaped_html = html.unescape(html_description)
-    wrapped_description = f"<![CDATA[{unescaped_html}]]>"
+def _truncate_to_bytes(text: str, byte_limit: int) -> str:
+    """
+    Trim text so its UTF-8 encoding fits within byte_limit, without splitting a
+    character in half.
 
-    # Handle byte limit
-    byte_limit = 4000
-    if len(wrapped_description.encode("utf-8")) > byte_limit:
-        content_length = byte_limit - len("<![CDATA[]]>".encode("utf-8"))
-        if content_length > 0:
-            truncated_content = unescaped_html[:content_length]
-            # Avoid breaking HTML tags
-            if (
-                "<" in truncated_content
-                and ">" not in truncated_content[truncated_content.rfind("<") :]
-            ):
-                truncated_content = truncated_content[: truncated_content.rfind("<")]
-            wrapped_description = f"<![CDATA[{truncated_content}]]>"
-
-    return wrapped_description
+    The previous implementation used the byte budget as a character index,
+    which silently overshot for any non-ASCII text: 3,000 accented characters
+    produced 6,019 bytes against a 4,000-byte limit.
+    """
+    encoded = text.encode("utf-8")
+    if len(encoded) <= byte_limit:
+        return text
+    # errors="ignore" drops a trailing partial multi-byte sequence.
+    return encoded[:byte_limit].decode("utf-8", errors="ignore")
 
 
-def is_valid_url(url):
+def format_description(description: str) -> str:
+    """
+    Convert Markdown to HTML and wrap it in a CDATA section.
+
+    The delimiters use sentinels rather than literal "<![CDATA[" so that
+    ElementTree can escape the document normally; _restore_cdata swaps them
+    back after serialization.
+    """
+    # Markdown already emits correctly escaped HTML ("&" -> "&amp;"). The CDATA
+    # section carries HTML for the client to parse, so that escaping has to be
+    # preserved. This used to call html.unescape() here and then re-escape at
+    # serialization time via a monkeypatch: the two cancelled out, but the
+    # monkeypatch also disabled "<" escaping for the entire document.
+    rendered_html = markdown.markdown(description)
+
+    # Reserve room for the delimiters, then trim on a character boundary.
+    overhead = len(b"<![CDATA[]]>")
+    content = _truncate_to_bytes(rendered_html, DESCRIPTION_BYTE_LIMIT - overhead)
+
+    if content != rendered_html:
+        # Avoid leaving a half-written HTML tag at the cut point.
+        last_open = content.rfind("<")
+        if last_open != -1 and ">" not in content[last_open:]:
+            content = content[:last_open]
+
+    return f"{_CDATA_OPEN}{content}{_CDATA_CLOSE}"
+
+
+def _restore_cdata(xml_text: str) -> str:
+    """
+    Turn the sentinels back into real CDATA delimiters and undo the escaping
+    ElementTree applied to the section contents.
+
+    This replaces a module-level monkeypatch of ET._escape_cdata, which
+    disabled "<" and ">" escaping for the whole document rather than just for
+    CDATA. Any episode title containing "<" was therefore written verbatim and
+    produced malformed XML.
+    """
+
+    def _unescape(match: re.Match[str]) -> str:
+        inner = match.group(1)
+        inner = (
+            inner.replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", '"')
+            .replace("&#10;", "\n")
+            .replace("&#13;", "\r")
+            .replace("&#09;", "\t")
+            # &amp; last, so "&amp;lt;" does not become "<".
+            .replace("&amp;", "&")
+        )
+        return f"<![CDATA[{inner}]]>"
+
+    return re.sub(
+        re.escape(_CDATA_OPEN) + "(.*?)" + re.escape(_CDATA_CLOSE),
+        _unescape,
+        xml_text,
+        flags=re.DOTALL,
+    )
+
+
+def is_valid_url(url: object) -> bool:
     """Check if a URL is valid"""
+    if not isinstance(url, str):
+        return False
     try:
         result = urlparse(url)
         return all([result.scheme, result.netloc])
@@ -179,14 +262,29 @@ def is_valid_url(url):
         return False
 
 
-def is_valid_email(email):
-    """Basic email validation"""
+def is_valid_email(email: object) -> bool:
+    """
+    Basic email validation.
+
+    Guards on type first: YAML happily yields an int for `email: 123`, which
+    used to raise TypeError out of re.match and abort validation instead of
+    reporting the field as invalid.
+    """
+    if not isinstance(email, str):
+        return False
     email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     return re.match(email_pattern, email) is not None
 
 
-def is_valid_iso_date(date_string):
-    """Check if a date string is valid ISO format"""
+def is_valid_iso_date(date_string: object) -> bool:
+    """
+    Check if a date string is valid ISO format.
+
+    Guards on type first: a non-string publication_date used to raise
+    AttributeError rather than being reported as an invalid date.
+    """
+    if not isinstance(date_string, str):
+        return False
     try:
         # Handle both 'Z' and timezone offset formats
         compatible_date = date_string.replace("Z", "+00:00")
@@ -196,7 +294,7 @@ def is_valid_iso_date(date_string):
         return False
 
 
-def validate_config(config):
+def validate_config(config: Any) -> tuple[bool, list[str]]:
     """
     Validate the podcast configuration file.
     Returns a tuple (is_valid, errors) where errors is a list of error messages.
@@ -392,7 +490,9 @@ def validate_config(config):
     return len(errors) == 0, errors
 
 
-def generate_rss(config, output_file_path, skip_asset_verification=False):
+def generate_rss(
+    config: Any, output_file_path: str, skip_asset_verification: bool = False
+) -> None:
     # --- Namespace Registration --- (Ensure podcast namespace is included)
     ET.register_namespace("itunes", "http://www.itunes.com/dtds/podcast-1.0.dtd")
     ET.register_namespace("atom", "http://www.w3.org/2005/Atom")
@@ -412,16 +512,24 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
     )
 
     # Global itunes:explicit setting
-    global_explicit = (
-        "yes" if config["metadata"].get("itunes_explicit", False) else "no"
-    )
+    # Honour both the new and legacy keys. This previously read only
+    # itunes_explicit, so a config using the documented `explicit:` key had
+    # every episode fall back to "no".
+    _meta = config["metadata"]
+    _global_explicit_val = _meta.get("explicit", _meta.get("itunes_explicit", False))
+    global_explicit = "yes" if _global_explicit_val else "no"
 
     # --- Metadata Section --- (Add copyright)
     channel = ET.SubElement(rss, "channel")
     metadata = config["metadata"]
 
     # Helper function to get metadata with backward compatibility
-    def get_meta(key, old_key=None, required=False, default=None):
+    def get_meta(
+        key: str,
+        old_key: str | None = None,
+        required: bool = False,
+        default: Any = None,
+    ) -> Any:
         # If old_key is not provided, use key itself for checking
         check_keys = [key]
         if old_key:
@@ -540,10 +648,10 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
         pub_date = datetime.fromisoformat(pub_date_str)
         # If the parsed date is naive (no timezone info), assume it's UTC
         if pub_date.tzinfo is None:
-            pub_date = pub_date.replace(tzinfo=timezone.utc)
+            pub_date = pub_date.replace(tzinfo=UTC)
 
         # Now compare the timezone-aware publication date with the current UTC time
-        if not pub_date < datetime.now(timezone.utc):
+        if not pub_date < datetime.now(UTC):
             print(
                 f"Skipping episode {episode['title']} as it's not scheduled to be released until {episode['publication_date']}."
             )
@@ -552,7 +660,7 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
         if skip_asset_verification:
             print(f"  Skipping asset verification for {episode['asset_url']}")
             # Provide default/placeholder values
-            file_info = {
+            file_info: FileInfo = {
                 "content-length": "0",  # Required by enclosure
                 "content-type": "application/octet-stream",  # Generic fallback type
                 "duration": None,
@@ -582,8 +690,11 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
             "enclosure",
             url=episode["asset_url"],
             # Use fetched or default values
-            type=file_info.get("content-type", "application/octet-stream"),
-            length=str(file_info.get("content-length", "0")),
+            # `or` rather than .get(..., default): get_file_info always sets
+            # these keys, so a missing header left them as None and the
+            # enclosure was written with length="None" and type=None.
+            type=file_info.get("content-type") or "application/octet-stream",
+            length=str(file_info.get("content-length") or "0"),
         )
 
         # Apply itunes:explicit setting (check episode first, then global)
@@ -648,11 +759,17 @@ def generate_rss(config, output_file_path, skip_asset_verification=False):
                         f"  Skipping invalid transcript entry for episode {episode['title']}: {transcript_info}"
                     )
 
-    tree = ET.ElementTree(rss)
-    tree.write(output_file_path, encoding="UTF-8", xml_declaration=True)
+    # Serialize to text so the CDATA sentinels can be restored, then write.
+    # Everything outside those sections keeps ElementTree's normal escaping.
+    xml_body = ET.tostring(rss, encoding="unicode")
+    # Single quotes match what ElementTree.write() emitted, so switching to a
+    # manual write does not churn every byte of an existing feed.
+    xml_text = "<?xml version='1.0' encoding='UTF-8'?>\n" + _restore_cdata(xml_body)
+    with open(output_file_path, "w", encoding="utf-8") as handle:
+        handle.write(xml_text)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Process some parameters.")
 
     parser.add_argument(

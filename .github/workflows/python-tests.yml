@@ -11,48 +11,51 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.11'
+          # uv caches the resolved environment keyed on uv.lock, replacing the
+          # manual actions/cache step this workflow used for pip.
+          enable-cache: true
+          cache-dependency-glob: uv.lock
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+      - name: Set up Python
+        # Reads .python-version, so local, CI and the Docker image agree.
+        run: uv python install
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          sudo apt-get update && sudo apt-get install ffmpeg
+        # --frozen fails if uv.lock is out of step with pyproject.toml, rather
+        # than quietly resolving something different from what was committed.
+        run: uv sync --frozen
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Lint with ruff
-        run: |
-          # Check for linting errors
-          ruff check .
+        run: uv run ruff check .
 
       - name: Check formatting with ruff
-        run: |
-          # Check if code is properly formatted
-          ruff format --check .
+        run: uv run ruff format --check .
 
+      - name: Type-check with mypy
+        run: uv run mypy
 
       - name: Ensure example file passes YAMLlint
-        run: |
-          yamllint -fgithub -d "{rules: {line-length: false}}" podcast_config.example.yaml
+        run: >
+          uv run yamllint -fgithub -d "{rules: {line-length: false}}"
+          podcast_config.example.yaml
 
       - name: Generate Feed from Example
-        run: python rss_generator.py --input-file podcast_config.example.yaml --output-file podcast_feed.xml --skip-asset-verification
+        run: >
+          uv run python rss_generator.py
+          --input-file podcast_config.example.yaml
+          --output-file podcast_feed.xml
+          --skip-asset-verification
 
       - name: Install xq
         run: |
@@ -64,11 +67,30 @@ jobs:
         run: xq . podcast_feed.xml
 
       - name: Run tests
-        run: |
-          python -m unittest discover tests
+        run: uv run python -m unittest discover tests
 
       - name: Upload Test Feed Artifact
         uses: actions/upload-artifact@v4
         with:
           name: podcast-feed-xml
           path: podcast_feed.xml
+
+  docker:
+    # The action ships as a Docker action, so a broken Dockerfile breaks every
+    # consumer. Nothing verified it built before.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the action image
+        run: docker build -t podcast-rss-generator:ci .
+
+      - name: Generate a feed through the image
+        run: >
+          docker run --rm -v "$PWD:/data" -w /data podcast-rss-generator:ci
+          --input-file podcast_config.example.yaml
+          --output-file /data/docker_feed.xml
+          --skip-asset-verification
+
+      - name: Confirm the image produced parseable XML
+        run: python -c "import xml.etree.ElementTree as ET; ET.parse('docker_feed.xml')"
