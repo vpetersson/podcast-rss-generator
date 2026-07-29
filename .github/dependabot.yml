@@ -1,0 +1,73 @@
+---
+# Dependabot configuration.
+#
+# Three ecosystems apply to this repository, two of which only exist because
+# of the uv migration in this PR:
+#
+#   uv              pyproject.toml and uv.lock. This is a distinct ecosystem
+#                   from "pip" — pip cannot read uv.lock, so configuring pip
+#                   here would silently do nothing. Supported since March 2025.
+#   docker          the base images in the Dockerfile.
+#   github-actions  the actions used by the workflows.
+version: 2
+
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(dev-deps)"
+    groups:
+      # The dev tools move together and are not shipped in the image, so a
+      # single PR is easier to review than four.
+      dev-tooling:
+        dependency-type: "development"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(docker)"
+    ignore:
+      # The Python version is pinned in three places that have to agree:
+      # .python-version, requires-python in pyproject.toml, and this base
+      # image. Moving it is a deliberate decision, not a dependency bump, so
+      # only patch updates to python:3.11-slim are proposed automatically.
+      - dependency-name: "python"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns:
+          - "*"

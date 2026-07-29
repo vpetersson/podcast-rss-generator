@@ -1,19 +1,21 @@
 import os
 import re
 import unittest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime, timedelta
+from typing import Any
+from unittest.mock import MagicMock, patch
 from xml.etree import ElementTree as ET
 
 from rss_generator import (
     convert_iso_to_rfc2822,
+    format_description,
     generate_rss,
     get_file_info,
-    read_podcast_config,
-    validate_config,
-    is_valid_url,
     is_valid_email,
     is_valid_iso_date,
+    is_valid_url,
+    read_podcast_config,
+    validate_config,
 )
 
 CONFIG_FILE = "podcast_config.example.yaml"
@@ -64,8 +66,21 @@ streams.stream.0.disposition.default=1"""
 
 
 class TestRSSGenerator(unittest.TestCase):
+    # Declared so mypy can see the attributes setUpClass populates. unittest's
+    # class-fixture pattern assigns them at runtime, which is invisible to a
+    # static checker without these.
+    config: Any
+    config_old: Any
+    tree_new: ET.ElementTree
+    root_new: ET.Element
+    channel_new: ET.Element | None
+    tree_old: ET.ElementTree
+    root_old: ET.Element
+    channel_old: ET.Element | None
+    ns: dict[str, str]
+
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         # Read the configuration and generate the RSS feed once for all tests
         # Use the updated example config with non-prefixed keys
         cls.config = read_podcast_config(CONFIG_FILE)
@@ -499,7 +514,7 @@ class TestRSSGenerator(unittest.TestCase):
     def test_date_comparison_with_naive_datetime(self):
         """Test that future-dated episodes with naive datetime strings are skipped."""
         # Create a config with a future date without timezone info
-        future_naive_date = (datetime.now(timezone.utc) + timedelta(days=1)).strftime(
+        future_naive_date = (datetime.now(UTC) + timedelta(days=1)).strftime(
             "%Y-%m-%dT%H:%M:%S"
         )
         test_config = {
@@ -536,7 +551,7 @@ class TestRSSGenerator(unittest.TestCase):
             os.remove("test_naive_date_feed.xml")
 
     def test_description_escaping(self):
-        with open("test_podcast_feed_new_keys.xml", "r") as f:
+        with open("test_podcast_feed_new_keys.xml") as f:
             xml_feed = f.read()
         # check for correct CDATA escaping
         description_tag_pattern = re.compile(r"<description>(.*?)</description>")
@@ -803,6 +818,183 @@ class TestValidationFunctions(unittest.TestCase):
             os.remove("test_podcast_feed_new_keys.xml")
         if os.path.exists("test_podcast_feed_old_keys.xml"):
             os.remove("test_podcast_feed_old_keys.xml")
+
+
+class TestAuditRegressions(unittest.TestCase):
+    """
+    One test per bug found in the audit. Each of these failed before the fix.
+    """
+
+    def test_special_characters_in_title_stay_escaped(self) -> None:
+        """
+        A "<" in a title used to produce malformed XML.
+
+        The module monkeypatched ET._escape_cdata to stop escaping "<" and ">"
+        so that CDATA delimiters survived serialization. That applied to every
+        text node, not just CDATA, so a title containing "<" was written
+        verbatim and the feed no longer parsed.
+        """
+        config = read_podcast_config(CONFIG_FILE)
+        config["episodes"] = [config["episodes"][0]]
+        config["episodes"][0]["title"] = "Tips & Tricks <not-a-tag> for you"
+
+        out = "test_special_chars.xml"
+        try:
+            generate_rss(config, out, skip_asset_verification=True)
+            # The whole point: it must still parse.
+            tree = ET.parse(out)
+            channel = tree.getroot().find("channel")
+            assert channel is not None
+            item = channel.find("item")
+            assert item is not None
+            title = item.find("title")
+            assert title is not None
+            self.assertEqual(title.text, "Tips & Tricks <not-a-tag> for you")
+        finally:
+            if os.path.exists(out):
+                os.remove(out)
+
+    def test_cdata_survives_and_keeps_html_escaping(self) -> None:
+        """CDATA delimiters must be literal, and the HTML inside stays escaped."""
+        config = read_podcast_config(CONFIG_FILE)
+        config["episodes"] = [config["episodes"][0]]
+        config["episodes"][0]["description"] = "Rock & roll <em>bold</em> text"
+
+        out = "test_cdata.xml"
+        try:
+            generate_rss(config, out, skip_asset_verification=True)
+            with open(out, encoding="utf-8") as handle:
+                raw = handle.read()
+            self.assertIn("<![CDATA[", raw)
+            self.assertIn("]]>", raw)
+            # HTML inside CDATA is parsed as HTML by clients, so "&" belongs
+            # escaped. A raw "&" here would be invalid HTML.
+            self.assertIn("Rock &amp; roll", raw)
+            # And the document as a whole still parses.
+            ET.parse(out)
+        finally:
+            if os.path.exists(out):
+                os.remove(out)
+
+    def test_description_truncation_respects_byte_limit(self) -> None:
+        """
+        Truncation applied the byte budget as a character index, so any
+        multi-byte text overshot: 3,000 accented characters produced 6,019
+        bytes against a 4,000-byte limit.
+        """
+        # format_description returns the sentinel form; what ships is the
+        # restored CDATA, so measure that.
+        import rss_generator
+
+        result = format_description("é" * 3000)
+        shipped = result.replace(rss_generator._CDATA_OPEN, "<![CDATA[").replace(
+            rss_generator._CDATA_CLOSE, "]]>"
+        )
+        self.assertLessEqual(len(shipped.encode("utf-8")), 4000)
+        # And the trim landed on a character boundary, not mid-sequence.
+        self.assertNotIn("\ufffd", shipped)
+
+    def test_enclosure_defaults_when_headers_missing(self) -> None:
+        """
+        get_file_info always sets these keys, so .get(key, default) returned
+        None rather than the default and the enclosure was written with
+        length="None" and a type of None.
+        """
+        config = read_podcast_config(CONFIG_FILE)
+        config["episodes"] = [config["episodes"][0]]
+
+        out = "test_enclosure.xml"
+        try:
+            with (
+                patch("rss_generator._make_http_request") as mock_http,
+                patch("rss_generator._run_ffprobe_with_retry") as mock_ffprobe,
+            ):
+                response = MockResponse("http://example.com/test.mp3")
+                response.headers = {}  # server sent neither header
+                mock_http.return_value = response
+                mock_ffprobe.return_value = ""
+
+                generate_rss(config, out)
+
+            tree = ET.parse(out)
+            channel = tree.getroot().find("channel")
+            assert channel is not None
+            item = channel.find("item")
+            assert item is not None
+            enclosure = item.find("enclosure")
+            assert enclosure is not None
+            self.assertEqual(enclosure.get("length"), "0")
+            self.assertEqual(enclosure.get("type"), "application/octet-stream")
+        finally:
+            if os.path.exists(out):
+                os.remove(out)
+
+    def test_global_explicit_honours_new_key(self) -> None:
+        """
+        The per-episode explicit fallback read only the legacy itunes_explicit
+        key, so a config using the documented `explicit:` key marked every
+        episode "no".
+        """
+        config = read_podcast_config(CONFIG_FILE)
+        config["metadata"].pop("itunes_explicit", None)
+        config["metadata"]["explicit"] = True
+        # Strip per-episode overrides so the global value is what is tested.
+        for episode in config["episodes"]:
+            episode.pop("explicit", None)
+            episode.pop("itunes_explicit", None)
+
+        out = "test_explicit.xml"
+        try:
+            generate_rss(config, out, skip_asset_verification=True)
+            tree = ET.parse(out)
+            channel = tree.getroot().find("channel")
+            assert channel is not None
+            ns = {"itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd"}
+            for item in channel.findall("item"):
+                explicit = item.find("itunes:explicit", ns)
+                assert explicit is not None
+                self.assertEqual(explicit.text, "yes")
+        finally:
+            if os.path.exists(out):
+                os.remove(out)
+
+    def test_validators_reject_non_string_input(self) -> None:
+        """
+        A YAML config yielding a non-string (email: 123) used to raise
+        TypeError/AttributeError out of validation instead of reporting the
+        field as invalid.
+        """
+        self.assertFalse(is_valid_email(123))
+        self.assertFalse(is_valid_email(None))
+        self.assertFalse(is_valid_iso_date(123))
+        self.assertFalse(is_valid_iso_date(None))
+        self.assertFalse(is_valid_url(123))
+        self.assertFalse(is_valid_url(None))
+
+    def test_validate_config_survives_non_string_fields(self) -> None:
+        """The same, end to end: validation reports errors rather than crashing."""
+        config = {
+            "metadata": {
+                "title": "T",
+                "description": "D",
+                "link": "https://example.com",
+                "rss_feed_url": "https://example.com/feed.xml",
+                "language": "en-us",
+                "email": 123,
+                "author": "A",
+            },
+            "episodes": [
+                {
+                    "title": "E",
+                    "description": "D",
+                    "publication_date": 20230115,
+                    "asset_url": "https://example.com/e.mp3",
+                }
+            ],
+        }
+        is_valid, errors = validate_config(config)
+        self.assertFalse(is_valid)
+        self.assertTrue(any("email" in e for e in errors))
 
 
 if __name__ == "__main__":
