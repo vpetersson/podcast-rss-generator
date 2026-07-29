@@ -56,7 +56,8 @@ That installs the runtime dependencies plus the dev tools (`ruff`, `mypy`,
 `yamllint`). For runtime only, use `uv sync --no-dev`.
 
 `ffmpeg` must be on your PATH for asset duration probing. It is not required
-for `--dry-run` or `--skip-asset-verification`.
+for `--dry-run` or `--skip-asset-verification`; if it is missing, the generator
+says so and omits duration rather than failing.
 
 **Optional:** `xq`, for validating the generated XML.
 

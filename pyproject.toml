@@ -7,12 +7,20 @@ license = { text = "MIT" }
 authors = [{ name = "Viktor Petersson" }]
 requires-python = ">=3.11"
 
+# Three runtime dependencies, all actively maintained and widely used.
+#
+# Dropped in this refactor:
+#   retry  last released in 2016, and pulled in `decorator` plus `py` —
+#          pytest's retired legacy library. Three packages for one decorator,
+#          replaced by the same explicit loop the module already used for
+#          ffprobe.
+#   sh     used only to invoke ffprobe, which subprocess does from the
+#          standard library. It also resolved the binary at import time, so
+#          the module would not load without ffmpeg installed.
 dependencies = [
     "Markdown>=3.5.1",
     "PyYAML>=6.0.1",
     "requests>=2.31.0",
-    "retry>=0.9.2",
-    "sh>=2.0.6",
 ]
 
 [project.urls]
@@ -65,12 +73,6 @@ warn_unreachable = true
 warn_return_any = true
 disallow_untyped_defs = true
 no_implicit_optional = true
-
-[[tool.mypy.overrides]]
-# `sh` builds its callables dynamically at import time, so there are no stubs
-# to import and never will be.
-module = ["sh", "retry"]
-ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # rss_generator.py itself is checked strictly. The test suite is checked too,

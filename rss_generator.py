@@ -1,6 +1,7 @@
 import argparse
 import os
 import re
+import subprocess
 import sys
 import time
 import uuid
@@ -13,11 +14,14 @@ from urllib.parse import urlparse
 import markdown
 import requests
 import yaml
-from retry import retry
 
 # How long to wait on the HEAD request for an asset. Without this, a hung
 # server stalls the whole feed build indefinitely.
 HTTP_TIMEOUT_SECONDS = 30
+
+# ffprobe has to download enough of a remote file to read its stream headers,
+# so this is more generous than the HEAD timeout, but still bounded.
+FFPROBE_TIMEOUT_SECONDS = 120
 
 # Apple caps <description> at 4000 bytes.
 DESCRIPTION_BYTE_LIMIT = 4000
@@ -60,10 +64,33 @@ def convert_iso_to_rfc2822(iso_date: str) -> str:
     return format_datetime(date_obj)
 
 
-@retry(tries=5, delay=2, backoff=2, logger=None)  # type: ignore[untyped-decorator]
-def _make_http_request(url: str) -> requests.Response:
-    """Make HTTP request with retry logic"""
-    return requests.head(url, allow_redirects=True, timeout=HTTP_TIMEOUT_SECONDS)
+def _make_http_request(
+    url: str, max_retries: int = 5, delay: int = 2
+) -> requests.Response:
+    """
+    HEAD the URL, retrying with exponential backoff.
+
+    Written out rather than pulled from the `retry` package: that package was
+    last released in 2016 and brings in `decorator` and `py`, the latter being
+    pytest's retired legacy library. Three dependencies for one decorator, on
+    a module that already hand-rolls the same loop for ffprobe.
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            return requests.head(
+                url, allow_redirects=True, timeout=HTTP_TIMEOUT_SECONDS
+            )
+        except requests.RequestException:
+            if attempt >= max_retries:
+                raise
+            print(
+                f"HTTP request failed (attempt {attempt}/{max_retries}), "
+                f"retrying in {delay} seconds..."
+            )
+            time.sleep(delay)
+            delay *= 2
+    # Unreachable: the final attempt either returns or re-raises.
+    raise AssertionError("unreachable")
 
 
 def _run_ffprobe_with_retry(url: str, max_retries: int = 5, delay: int = 2) -> str:
@@ -72,26 +99,40 @@ def _run_ffprobe_with_retry(url: str, max_retries: int = 5, delay: int = 2) -> s
 
     Returns the probe output, or an empty string if every attempt failed.
 
-    `sh` resolves ffprobe at import time, so it is imported here rather than at
-    module level: --dry-run and --skip-asset-verification never probe anything
-    and should not require ffmpeg to be installed.
+    Uses subprocess from the standard library. This previously went through
+    the `sh` package, which resolves the binary at import time — so the module
+    would not even load without ffmpeg installed, including for --dry-run,
+    which never probes anything.
     """
-    from sh import ErrorReturnCode, ffprobe  # noqa: PLC0415
+    command = [
+        "ffprobe",
+        "-hide_banner",
+        "-v",
+        "quiet",
+        "-show_streams",
+        "-print_format",
+        "flat",
+        url,
+    ]
 
     for attempt in range(1, max_retries + 1):
         try:
-            return str(
-                ffprobe(
-                    "-hide_banner",
-                    "-v",
-                    "quiet",
-                    "-show_streams",
-                    "-print_format",
-                    "flat",
-                    url,
-                )
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=FFPROBE_TIMEOUT_SECONDS,
             )
-        except ErrorReturnCode:
+            return completed.stdout
+        except FileNotFoundError:
+            # ffmpeg is not installed. Retrying will not help.
+            print(
+                "ffprobe not found. Install ffmpeg, or pass "
+                "--skip-asset-verification to omit duration metadata."
+            )
+            return ""
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             if attempt >= max_retries:
                 print(
                     f"Failed to run ffprobe after {max_retries} attempts for URL: {url}"
