@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           # uv caches the resolved environment keyed on uv.lock, replacing the
           # manual actions/cache step this workflow used for pip.
@@ -70,7 +70,7 @@ jobs:
         run: uv run python -m unittest discover tests
 
       - name: Upload Test Feed Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: podcast-feed-xml
           path: podcast_feed.xml
@@ -80,7 +80,7 @@ jobs:
     # consumer. Nothing verified it built before.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build the action image
         run: docker build -t podcast-rss-generator:ci .
