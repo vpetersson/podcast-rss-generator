@@ -34,7 +34,7 @@ podcast-rss-generator = "rss_generator:main"
 # Tooling, not shipped in the Docker image. `uv sync --no-dev` skips these.
 dev = [
     "mypy>=1.13",
-    "ruff>=0.12.3",
+    "ruff>=0.16.1",
     "types-Markdown>=3.5",
     "types-PyYAML>=6.0",
     "types-requests>=2.31",
