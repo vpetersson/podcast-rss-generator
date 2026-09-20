@@ -25,7 +25,11 @@ from helpers import (
     meta,
 )
 
-from rss_generator import convert_iso_to_rfc2822, generate_rss, get_file_info
+from podcast_rss_generator import (
+    convert_iso_to_rfc2822,
+    generate_rss,
+    get_file_info,
+)
 
 UUID_PATTERN = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -258,9 +262,13 @@ def test_generate_rss_writes_utf8(config: dict[str, Any], tmp_path: Path) -> Non
     config["episodes"][0]["title"] = "Épisode spécial — ☕"
 
     with (
-        patch("rss_generator._make_http_request", return_value=make_response()),
         patch(
-            "rss_generator._run_ffprobe_with_retry", return_value=MOCK_FFPROBE_OUTPUT
+            "podcast_rss_generator.assets._make_http_request",
+            return_value=make_response(),
+        ),
+        patch(
+            "podcast_rss_generator.assets._run_ffprobe_with_retry",
+            return_value=MOCK_FFPROBE_OUTPUT,
         ),
     ):
         output = tmp_path / "utf8.xml"

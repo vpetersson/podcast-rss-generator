@@ -40,6 +40,16 @@ Upload manually to those two platforms.
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). `ffmpeg` is needed
 for duration probing.
 
+This is a regular Python package, so the quickest way to get the
+`podcast-rss-generator` command without cloning anything is:
+
+```bash
+uv tool install git+https://github.com/vpetersson/podcast-rss-generator
+# or: pipx install git+https://github.com/vpetersson/podcast-rss-generator
+```
+
+To work on it instead:
+
 ```bash
 git clone https://github.com/vpetersson/podcast-rss-generator.git
 cd podcast-rss-generator
@@ -47,8 +57,9 @@ uv sync
 ```
 
 `uv` reads `.python-version` and installs the right interpreter itself, so
-there is no virtualenv to create. `uv sync` installs the dev tools (`pytest`,
-`ruff`, `mypy`, `yamllint`) as well; use `uv sync --no-dev` for runtime only.
+there is no virtualenv to create. `uv sync` installs the package in editable
+mode plus the dev tools (`pytest`, `ruff`, `mypy`, `yamllint`); use
+`uv sync --no-dev` for runtime only.
 
 If `ffmpeg` is missing, the generator says so and omits episode duration rather
 than failing. It is not needed at all for `--dry-run` or
@@ -57,9 +68,9 @@ than failing. It is not needed at all for `--dry-run` or
 ## Usage
 
 ```
-usage: rss_generator.py [-h] [--version] [--input-file INPUT_FILE]
-                        [--output-file OUTPUT_FILE]
-                        [--skip-asset-verification] [--dry-run]
+usage: podcast-rss-generator [-h] [--version] [--input-file INPUT_FILE]
+                             [--output-file OUTPUT_FILE]
+                             [--skip-asset-verification] [--dry-run]
 
 options:
   -h, --help                 show this help message and exit
@@ -70,13 +81,19 @@ options:
   --dry-run                  Validate the configuration only
 ```
 
+`python -m podcast_rss_generator` does the same thing, for anyone who prefers
+it or whose `PATH` does not include the tool's `bin` directory.
+
 Copy `podcast_config.example.yaml` to `podcast_config.yaml` and fill in your
 metadata and episodes, then:
 
 ```bash
-uv run python rss_generator.py --dry-run   # validate
-uv run python rss_generator.py             # generate podcast_feed.xml
+podcast-rss-generator --dry-run   # validate
+podcast-rss-generator             # generate podcast_feed.xml
 ```
+
+From a clone, prefix those with `uv run` (`uv run podcast-rss-generator
+--dry-run`) to use the project's own environment.
 
 `--dry-run` checks YAML syntax, required fields, URL formats, email addresses,
 ISO dates and episode structure. It exits 0 when the config is valid and 1 when
@@ -201,13 +218,20 @@ Pin to a release tag rather than `master` if you want reproducible runs.
 ```bash
 docker build -t podcast-rss-generator:latest .
 
-docker run --rm -v .:/opt podcast-rss-generator:latest \
-    --input-file /opt/podcast_config.yaml \
-    --output-file /opt/myfeed.xml
+docker run --rm -v .:/data podcast-rss-generator:latest \
+    --input-file podcast_config.yaml \
+    --output-file myfeed.xml
 ```
 
 `-v` shares the working directory with the container so the config can be read
-and the feed written back out; `--rm` cleans up the container afterwards.
+and the feed written back out; `--rm` cleans up the container afterwards. The
+image sets its working directory to `/data`, so paths inside the container are
+relative to whatever you mounted there.
+
+The image installs the built wheel into a virtualenv and its entry point is
+the `podcast-rss-generator` console script — it does not carry a source tree,
+so what runs in the container is the same distribution `uv tool install` would
+give you.
 
 ## Optimising video
 
@@ -250,8 +274,28 @@ adding one:
   `ffprobe` are stubbed. Generated feeds are written to pytest's `tmp_path`,
   never into the working tree.
 
-`rss_generator.py` and the test suite are both type-checked under mypy's
-`strict` mode.
+The package and the test suite are both type-checked under mypy's `strict`
+mode, and the package ships a `py.typed` marker so anything importing it gets
+the annotations too.
+
+### Project layout
+
+```
+src/podcast_rss_generator/
+    __init__.py    # __version__ and the public API
+    cli.py         # argument parsing, the podcast-rss-generator entry point
+    config.py      # reading the YAML file
+    validation.py  # --dry-run's checks
+    assets.py      # HTTP HEAD and ffprobe probing of episode assets
+    feed.py        # building the RSS document
+tests/             # pytest suite; helpers.py and conftest.py are shared
+```
+
+The `src/` layout is deliberate: nothing is importable from the repository
+root, so the tests can only see the package that was actually installed. With
+a flat layout, a module accidentally left out of the wheel still passes CI and
+fails on the user's machine. `tests/test_packaging.py` covers the rest of the
+contract — the console script, the metadata, and `python -m`.
 
 Dependencies are pinned in `uv.lock`. After changing `pyproject.toml`, run
 `uv lock` and commit the result — CI installs with `--frozen` and fails if the
@@ -271,14 +315,15 @@ There is nothing to infer from a version bump beyond when it shipped; read the
 release notes for what changed. Earlier releases used SemVer (`v0.2.1` and
 below), so any version from `2026.9.0` onwards is newer than any `0.x` tag.
 
-`rss_generator.__version__` is the single source of truth. `pyproject.toml`
-declares the version dynamic and hatchling reads it from there, so
-`rss_generator.py --version` and the package metadata cannot disagree.
+`podcast_rss_generator.__version__` is the single source of truth.
+`pyproject.toml` declares the version dynamic and hatchling reads it from
+there, so `podcast-rss-generator --version` and the package metadata cannot
+disagree.
 
 To cut a release:
 
 ```bash
-# 1. bump __version__ in rss_generator.py
+# 1. bump __version__ in src/podcast_rss_generator/__init__.py
 uv lock              # refreshes the version recorded in uv.lock
 uv run pytest
 git commit -am "Release 2026.9.0"

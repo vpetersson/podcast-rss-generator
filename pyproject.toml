@@ -1,8 +1,8 @@
 [project]
 name = "podcast-rss-generator"
 # CalVer, YYYY.M.PATCH — see "Versioning" in README.md. The value lives in
-# rss_generator.__version__ so `--version` and the package metadata cannot
-# drift apart; [tool.hatch.version] below reads it from there.
+# podcast_rss_generator.__version__ so `--version` and the package metadata
+# cannot drift apart; [tool.hatch.version] below reads it from there.
 dynamic = ["version"]
 description = "Generate a podcast RSS feed from a YAML configuration file, with validation and asset verification."
 readme = "README.md"
@@ -31,7 +31,7 @@ Homepage = "https://github.com/vpetersson/podcast-rss-generator"
 Issues = "https://github.com/vpetersson/podcast-rss-generator/issues"
 
 [project.scripts]
-podcast-rss-generator = "rss_generator:main"
+podcast-rss-generator = "podcast_rss_generator.cli:main"
 
 [dependency-groups]
 # Tooling, not shipped in the Docker image. `uv sync --no-dev` skips these.
@@ -51,11 +51,19 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "rss_generator.py"
+path = "src/podcast_rss_generator/__init__.py"
 
+# src layout: nothing is importable from the repository root, so a test run
+# can only see the package that was actually installed. With a flat layout
+# `import podcast_rss_generator` silently picks up the working tree instead,
+# and a packaging mistake — a module missing from the wheel — passes CI and
+# fails on the user's machine.
 [tool.hatch.build.targets.wheel]
-only-include = ["rss_generator.py"]
-sources = ["."]
+packages = ["src/podcast_rss_generator"]
+
+[tool.hatch.build.targets.sdist]
+# The sdist carries what is needed to build and test the package.
+include = ["src", "tests", "podcast_config.example.yaml", "README.md", "LICENSE"]
 
 [tool.ruff]
 target-version = "py311"
@@ -80,9 +88,9 @@ select = ["E4", "E7", "E9", "F", "B", "I", "C4", "UP", "PT", "SIM", "RUF"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["rss_generator.py", "tests"]
+files = ["src", "tests"]
 
-# The test suite is held to the same bar as the module: every test is
+# The test suite is held to the same bar as the package: every test is
 # annotated, and `element()` in tests/helpers.py narrows the Optional that
 # Element.find returns, so no per-module relaxations are needed.
 strict = true
@@ -92,10 +100,10 @@ disallow_untyped_defs = true
 no_implicit_optional = true
 
 [tool.pytest.ini_options]
-# `.` on the path so `import rss_generator` works without the project being
-# installed (e.g. `uv run --no-project pytest`); `tests` so the helpers module
-# is importable from the test modules.
-pythonpath = [".", "tests"]
+# Only `tests`, so the helpers module is importable from the test modules.
+# The package itself is deliberately absent: under a src layout the tests
+# import the installed distribution, which is what users get.
+pythonpath = ["tests"]
 testpaths = ["tests"]
 addopts = [
     # -ra prints a reason for every non-passing test; the two --strict flags
@@ -108,7 +116,7 @@ addopts = [
 filterwarnings = ["error"]
 
 [tool.coverage.run]
-source = ["rss_generator"]
+source = ["podcast_rss_generator"]
 
 [tool.coverage.report]
 exclude_also = ['if __name__ == "__main__":']

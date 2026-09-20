@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 from helpers import CONFIG_FILE
 
-import rss_generator
-from rss_generator import main
+import podcast_rss_generator
+from podcast_rss_generator.cli import main
 
 # CalVer: YYYY.M.PATCH, with the month unpadded so the string matches what
 # PEP 440 normalises the package version to.
@@ -17,7 +17,7 @@ CALVER_PATTERN = re.compile(r"^\d{4}\.(1[0-2]|[1-9])\.\d+$")
 
 
 def test_version_is_calver() -> None:
-    assert CALVER_PATTERN.match(rss_generator.__version__)
+    assert CALVER_PATTERN.match(podcast_rss_generator.__version__)
 
 
 def test_package_metadata_matches_module_version() -> None:
@@ -27,19 +27,19 @@ def test_package_metadata_matches_module_version() -> None:
         installed = version("podcast-rss-generator")
     except PackageNotFoundError:  # running against the source tree only
         pytest.skip("package is not installed in this environment")
-    assert installed == rss_generator.__version__
+    assert installed == podcast_rss_generator.__version__
 
 
 def test_version_flag_prints_version(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("sys.argv", ["rss_generator.py", "--version"])
+    monkeypatch.setattr("sys.argv", ["podcast-rss-generator", "--version"])
 
     with pytest.raises(SystemExit) as exc_info:
         main()
 
     assert exc_info.value.code == 0
-    assert rss_generator.__version__ in capsys.readouterr().out
+    assert podcast_rss_generator.__version__ in capsys.readouterr().out
 
 
 def test_dry_run_validates_the_example_config(
@@ -48,7 +48,7 @@ def test_dry_run_validates_the_example_config(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         "sys.argv",
-        ["rss_generator.py", "--input-file", str(CONFIG_FILE), "--dry-run"],
+        ["podcast-rss-generator", "--input-file", str(CONFIG_FILE), "--dry-run"],
     )
 
     with pytest.raises(SystemExit) as exc_info:
@@ -65,7 +65,12 @@ def test_missing_config_file_exits_nonzero(
 ) -> None:
     monkeypatch.setattr(
         "sys.argv",
-        ["rss_generator.py", "--input-file", str(tmp_path / "nope.yaml"), "--dry-run"],
+        [
+            "podcast-rss-generator",
+            "--input-file",
+            str(tmp_path / "nope.yaml"),
+            "--dry-run",
+        ],
     )
 
     with pytest.raises(SystemExit) as exc_info:
@@ -80,7 +85,7 @@ def test_invalid_config_exits_nonzero(
     broken = tmp_path / "broken.yaml"
     broken.write_text("metadata: {title: Only a title}\n", encoding="utf-8")
     monkeypatch.setattr(
-        "sys.argv", ["rss_generator.py", "--input-file", str(broken), "--dry-run"]
+        "sys.argv", ["podcast-rss-generator", "--input-file", str(broken), "--dry-run"]
     )
 
     with pytest.raises(SystemExit) as exc_info:
@@ -96,7 +101,7 @@ def test_generates_a_feed_end_to_end(
     monkeypatch.setattr(
         "sys.argv",
         [
-            "rss_generator.py",
+            "podcast-rss-generator",
             "--input-file",
             str(CONFIG_FILE),
             "--output-file",
@@ -119,7 +124,7 @@ def test_input_dry_run_env_var_overrides_the_flag(
     monkeypatch.setattr(
         "sys.argv",
         [
-            "rss_generator.py",
+            "podcast-rss-generator",
             "--input-file",
             str(CONFIG_FILE),
             "--output-file",
@@ -142,7 +147,7 @@ def test_input_skip_asset_verification_env_var_overrides_the_flag(
     monkeypatch.setattr(
         "sys.argv",
         [
-            "rss_generator.py",
+            "podcast-rss-generator",
             "--input-file",
             str(CONFIG_FILE),
             "--output-file",
@@ -152,7 +157,7 @@ def test_input_skip_asset_verification_env_var_overrides_the_flag(
     # Nothing should reach the network: the example config points at URLs that
     # do not exist.
     probe = MagicMock()
-    monkeypatch.setattr("rss_generator._make_http_request", probe)
+    monkeypatch.setattr("podcast_rss_generator.assets._make_http_request", probe)
 
     main()
 

@@ -89,12 +89,16 @@ jobs:
       - name: Set up Python
         run: uv python install
 
-      - name: Install dependencies
+      - name: Install the package
+        # No --no-install-project here: the point of this job is to exercise
+        # the installed distribution.
         run: uv sync --frozen --no-dev
 
       - name: Generate Feed from Example
+        # The installed console script, not a path into the source tree — the
+        # same entry point the Docker image runs.
         run: >
-          uv run python rss_generator.py
+          uv run podcast-rss-generator
           --input-file podcast_config.example.yaml
           --output-file podcast_feed.xml
           --skip-asset-verification
@@ -114,6 +118,40 @@ jobs:
           name: podcast-feed-xml
           path: podcast_feed.xml
 
+  package:
+    name: Build and check the distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Build the wheel and sdist
+        run: uv build
+
+      - name: Install the wheel into a clean environment and run it
+        # Installing from dist/ rather than the source tree is what catches a
+        # module left out of the wheel.
+        run: |
+          uv venv /tmp/wheel-check
+          VIRTUAL_ENV=/tmp/wheel-check uv pip install dist/*.whl
+          /tmp/wheel-check/bin/podcast-rss-generator --version
+          /tmp/wheel-check/bin/podcast-rss-generator \
+            --input-file podcast_config.example.yaml --dry-run
+
+      - name: Upload the distribution
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
   docker:
     name: Build and run the action image
     # The action ships as a Docker action, so a broken Dockerfile breaks every
@@ -129,8 +167,9 @@ jobs:
         run: docker run --rm podcast-rss-generator:ci --version
 
       - name: Generate a feed through the image
+        # No -w: the image sets WORKDIR to the /data mount point itself.
         run: >
-          docker run --rm -v "$PWD:/data" -w /data podcast-rss-generator:ci
+          docker run --rm -v "$PWD:/data" podcast-rss-generator:ci
           --input-file podcast_config.example.yaml
           --output-file /data/docker_feed.xml
           --skip-asset-verification

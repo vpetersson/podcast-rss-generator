@@ -6,8 +6,8 @@ from typing import Any
 
 from helpers import NS, Feed, build_feed, element
 
-import rss_generator
-from rss_generator import format_description
+from podcast_rss_generator import feed as feed_module
+from podcast_rss_generator import format_description
 
 
 def test_special_characters_in_title_stay_escaped(
@@ -57,11 +57,11 @@ def test_description_truncation_respects_byte_limit() -> None:
     # format_description returns the sentinel form; what ships is the restored
     # CDATA, so measure that.
     result = format_description("é" * 3000)
-    shipped = result.replace(rss_generator._CDATA_OPEN, "<![CDATA[").replace(
-        rss_generator._CDATA_CLOSE, "]]>"
+    shipped = result.replace(feed_module._CDATA_OPEN, "<![CDATA[").replace(
+        feed_module._CDATA_CLOSE, "]]>"
     )
 
-    assert len(shipped.encode("utf-8")) <= rss_generator.DESCRIPTION_BYTE_LIMIT
+    assert len(shipped.encode("utf-8")) <= feed_module.DESCRIPTION_BYTE_LIMIT
     # And the trim landed on a character boundary, not mid-sequence.
     assert "�" not in shipped
 

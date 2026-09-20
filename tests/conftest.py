@@ -24,7 +24,7 @@ from helpers import (
     use_legacy_metadata_keys,
 )
 
-from rss_generator import read_podcast_config
+from podcast_rss_generator import read_podcast_config
 
 
 def _example_config() -> dict[str, Any]:
@@ -68,9 +68,13 @@ def feed(request: pytest.FixtureRequest) -> Feed:
 def no_network() -> Iterator[None]:
     """Stub the HEAD request and ffprobe for tests that call into them."""
     with (
-        patch("rss_generator._make_http_request", return_value=make_response()),
         patch(
-            "rss_generator._run_ffprobe_with_retry", return_value=MOCK_FFPROBE_OUTPUT
+            "podcast_rss_generator.assets._make_http_request",
+            return_value=make_response(),
+        ),
+        patch(
+            "podcast_rss_generator.assets._run_ffprobe_with_retry",
+            return_value=MOCK_FFPROBE_OUTPUT,
         ),
     ):
         yield

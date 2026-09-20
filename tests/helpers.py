@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 from unittest.mock import MagicMock, patch
 
-from rss_generator import generate_rss
+from podcast_rss_generator import generate_rss
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_FILE = REPO_ROOT / "podcast_config.example.yaml"
@@ -104,8 +104,11 @@ def build_feed(
     """Generate a feed with the network and ffprobe calls stubbed out."""
     response = make_response(headers=headers)
     with (
-        patch("rss_generator._make_http_request", return_value=response),
-        patch("rss_generator._run_ffprobe_with_retry", return_value=ffprobe_output),
+        patch("podcast_rss_generator.assets._make_http_request", return_value=response),
+        patch(
+            "podcast_rss_generator.assets._run_ffprobe_with_retry",
+            return_value=ffprobe_output,
+        ),
     ):
         generate_rss(config, str(path), skip_asset_verification=skip_asset_verification)
 

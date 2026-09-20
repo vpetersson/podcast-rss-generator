@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from rss_generator import (
+from podcast_rss_generator import (
     is_valid_email,
     is_valid_iso_date,
     is_valid_url,
