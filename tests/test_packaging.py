@@ -25,6 +25,7 @@ EXPECTED_MODULES = [
     "podcast_rss_generator.assets",
     "podcast_rss_generator.cli",
     "podcast_rss_generator.config",
+    "podcast_rss_generator.enrich",
     "podcast_rss_generator.feed",
     "podcast_rss_generator.validation",
 ]

@@ -11,6 +11,7 @@ from importlib.metadata import version
 
 from podcast_rss_generator.assets import FileInfo, get_file_info
 from podcast_rss_generator.config import read_podcast_config
+from podcast_rss_generator.enrich import resolve_episodes
 from podcast_rss_generator.feed import (
     convert_iso_to_rfc2822,
     format_description,
@@ -20,6 +21,7 @@ from podcast_rss_generator.validation import (
     is_valid_email,
     is_valid_iso_date,
     is_valid_url,
+    validate_asset_references,
     validate_config,
 )
 
@@ -44,5 +46,7 @@ __all__ = [
     "is_valid_iso_date",
     "is_valid_url",
     "read_podcast_config",
+    "resolve_episodes",
+    "validate_asset_references",
     "validate_config",
 ]

@@ -1,9 +1,10 @@
 """Probing a published episode asset over HTTP and with ffprobe."""
 
+import json
 import re
 import subprocess
 import time
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import requests
 
@@ -27,6 +28,7 @@ FileInfo = TypedDict(
         "content-type": str | None,
         "duration": int | None,
         "content_hash": str | None,
+        "tags": dict[str, str],
     },
 )
 
@@ -77,8 +79,16 @@ def _run_ffprobe_with_retry(url: str, max_retries: int = 5, delay: int = 2) -> s
         "-v",
         "quiet",
         "-show_streams",
+        # Container-level metadata, which is where ID3 tags surface. ffprobe
+        # reads it from the same header fetch the stream info already needs,
+        # so asking for it costs no extra network: probing a 28 MB remote MP3
+        # transfers ~48 KB either way.
+        "-show_format",
         "-print_format",
-        "flat",
+        # JSON rather than flat: tag values are arbitrary text, and flat
+        # output escapes them ('format.tags.title="He said \\"hi\\" = ok"').
+        # Splitting that on "=" mangles any title containing one.
+        "json",
         url,
     ]
 
@@ -114,6 +124,57 @@ def _run_ffprobe_with_retry(url: str, max_retries: int = 5, delay: int = 2) -> s
     return ""
 
 
+def _parse_probe(probe: str) -> tuple[int | None, dict[str, str]]:
+    """
+    Pull the duration and the container tags out of ffprobe's JSON.
+
+    Returns ``(None, {})`` for output that is empty or not JSON at all, which
+    is what an ffprobe that never ran leaves behind.
+    """
+    if not probe:
+        return None, {}
+
+    try:
+        parsed: Any = json.loads(probe)
+    except json.JSONDecodeError:
+        print("ffprobe returned output that is not valid JSON; ignoring it.")
+        return None, {}
+
+    if not isinstance(parsed, dict):
+        return None, {}
+
+    container: Any = parsed.get("format")
+    container = container if isinstance(container, dict) else {}
+
+    streams: Any = parsed.get("streams")
+    first_stream: Any = streams[0] if isinstance(streams, list) and streams else {}
+    first_stream = first_stream if isinstance(first_stream, dict) else {}
+
+    # The first stream, as before, falling back to the container. They agree
+    # for audio; a container-level duration is the more reliable of the two
+    # for video, where the first stream may be a cover-art image.
+    duration = None
+    for source in (first_stream, container):
+        raw = source.get("duration")
+        if raw is not None:
+            try:
+                duration = int(float(raw))
+            except (TypeError, ValueError):
+                continue
+            break
+
+    # Tag values are strings in practice, but ffprobe is not contractually
+    # bound to that, and a tag coerced to str is more useful than a crash.
+    raw_tags: Any = container.get("tags")
+    tags = (
+        {str(key): str(value) for key, value in raw_tags.items()}
+        if isinstance(raw_tags, dict)
+        else {}
+    )
+
+    return duration, tags
+
+
 def get_file_info(url: str) -> FileInfo:
     # Make HTTP request with retry logic
     response = _make_http_request(url)
@@ -124,29 +185,7 @@ def get_file_info(url: str) -> FileInfo:
 
     # Run ffprobe with retry logic
     probe = _run_ffprobe_with_retry(response.url)
-
-    # If probe is empty (all retries failed), set duration to None.
-    # content_hash is included so callers can rely on the key always existing.
-    if not probe:
-        return {
-            "content-length": response.headers.get("content-length"),
-            "content-type": response.headers.get("content-type"),
-            "duration": None,
-            "content_hash": None,
-        }
-
-    lines = probe.split("\n")
-
-    # Filtering out the line that contains 'streams.stream.0.duration'
-    duration_line = next(
-        (line for line in lines if line.startswith("streams.stream.0.duration=")), None
-    )
-
-    if duration_line:
-        # Extracting the numeric value and converting it to an integer
-        duration = int(float(duration_line.split("=")[1].strip('"')))
-    else:
-        duration = None
+    duration, tags = _parse_probe(probe)
 
     # --- Extract content hash from headers ---
     content_hash = None
@@ -179,4 +218,5 @@ def get_file_info(url: str) -> FileInfo:
         "content-type": headers.get("content-type"),
         "duration": duration,
         "content_hash": content_hash,  # Add the extracted hash to the result
+        "tags": tags,
     }

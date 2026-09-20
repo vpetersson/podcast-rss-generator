@@ -70,6 +70,11 @@ def test_ffprobe_returns_its_output() -> None:
         )
 
     assert run.call_args.kwargs["timeout"] == assets.FFPROBE_TIMEOUT_SECONDS
+    # Tags live in the container metadata, and JSON is what makes a tag value
+    # containing "=" or a quote readable.
+    command = run.call_args.args[0]
+    assert "-show_format" in command
+    assert command[command.index("-print_format") + 1] == "json"
 
 
 def test_ffprobe_missing_binary_gives_up_immediately() -> None:
@@ -138,5 +143,12 @@ def test_get_file_info_survives_an_unusable_probe() -> None:
     ):
         info: dict[str, Any] = dict(get_file_info("https://example.com/a.mp3"))
 
-    assert set(info) == {"content-length", "content-type", "duration", "content_hash"}
+    assert set(info) == {
+        "content-length",
+        "content-type",
+        "duration",
+        "content_hash",
+        "tags",
+    }
     assert info["duration"] is None
+    assert info["tags"] == {}

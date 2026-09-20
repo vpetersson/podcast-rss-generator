@@ -19,6 +19,8 @@ using this to turn a video podcast into audio automatically.
 - Converts ISO 8601 dates to RFC 2822
 - Probes each asset for duration, content type and length via HTTP HEAD and
   `ffprobe`
+- Optionally fills in episode fields from the asset's own ID3/container tags
+  (`--read-asset-metadata`)
 - Follows [The Podcast RSS Standard](https://github.com/Podcast-Standards-Project/PSP-1-Podcast-RSS-Specification),
   including `podcast:guid`, `podcast:locked` and `podcast:transcript`
 - Validates the config and reports every problem at once, rather than failing
@@ -70,7 +72,8 @@ than failing. It is not needed at all for `--dry-run` or
 ```
 usage: podcast-rss-generator [-h] [--version] [--input-file INPUT_FILE]
                              [--output-file OUTPUT_FILE]
-                             [--skip-asset-verification] [--dry-run]
+                             [--skip-asset-verification] [--read-asset-metadata]
+                             [--dry-run]
 
 options:
   -h, --help                 show this help message and exit
@@ -78,6 +81,8 @@ options:
   --input-file INPUT_FILE    Input YAML file (default: podcast_config.yaml)
   --output-file OUTPUT_FILE  Output XML file (default: podcast_feed.xml)
   --skip-asset-verification  Skip HTTP HEAD and ffprobe checks for asset URLs
+  --read-asset-metadata      Fill in omitted episode fields from the asset's
+                             own ID3/container tags
   --dry-run                  Validate the configuration only
 ```
 
@@ -105,6 +110,46 @@ it is not:
   - Episode 1: Invalid publication_date format 'invalid-date'
   - Episode 1: Invalid asset_url format 'not-a-url'
 ```
+
+### Reading episode metadata from the files themselves
+
+If your MP3s already carry ID3 tags — because you tag them in your editor, or
+your host wrote them — `--read-asset-metadata` uses them instead of making you
+repeat the same text in the YAML:
+
+```bash
+podcast-rss-generator --read-asset-metadata
+```
+
+It is off by default, and it only ever fills a key the config leaves out or
+leaves blank. Where both the config and the tag have a value, the config wins,
+so turning the flag on cannot change a feed that already generates correctly.
+
+| Episode key   | Filled from                                                    |
+| ------------- | -------------------------------------------------------------- |
+| `title`       | `title` (ID3 `TIT2`)                                           |
+| `description` | `description`, `TDES`, `synopsis`, then `comment` (ID3 `COMM`) |
+| `episode`     | `track` (ID3 `TRCK`), so `7` or `7/12`                         |
+| `season`      | `disc` (ID3 `TPOS`)                                            |
+
+This costs nothing extra: `ffprobe` already runs against every asset to read
+its duration, and the tags come back from that same call — probing a 28 MB
+remote MP3 transfers about 48 KB either way. MP4 and M4A work too, through the
+equivalent container atoms.
+
+Two fields are deliberately not filled this way:
+
+- `publication_date`, because ID3 dates are lossy. A tag written as
+  `2025-06-19T10:00:00Z` reads back as `2025-06-19T10:00`, and in practice
+  `TDRC` is often just a year. Getting this wrong silently reorders a feed, so
+  it stays in the YAML.
+- `image`, because the feed needs a URL. Artwork embedded in an `APIC` frame
+  would have to be extracted and hosted first.
+
+With the flag on, `--dry-run` probes the assets rather than reporting every
+tag-supplied field as missing, so it needs network access and `ffmpeg`. For
+the same reason `--read-asset-metadata` cannot be combined with
+`--skip-asset-verification`, which exists to avoid exactly that.
 
 Copy the resulting `podcast_feed.xml` to your bucket with `s3cmd`, `aws` or
 `mc`. You can check the result with [Podbase](https://podba.se/validate/).
@@ -134,8 +179,8 @@ Copy the resulting `podcast_feed.xml` to your bucket with `s3cmd`, `aws` or
 
 | Key                | Description                                                                    | Notes                                                    |
 | ------------------ | ------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| `title`            | Episode title.                                                                 | Required.                                                |
-| `description`      | Episode description.                                                           | Required. Markdown supported.                            |
+| `title`            | Episode title.                                                                 | Required, or read from the asset's tags with `--read-asset-metadata`. |
+| `description`      | Episode description.                                                           | Required. Markdown supported. Also readable from the asset's tags. |
 | `publication_date` | ISO 8601, e.g. `2023-01-15T10:00:00Z`.                                         | Required. Episodes dated in the future are skipped.      |
 | `asset_url`        | Direct URL to the audio or video file.                                         | Required.                                                |
 | `link`             | Webpage for this episode.                                                      | Optional. Defaults to `metadata.link`.                   |
@@ -211,6 +256,7 @@ Pin to a release tag rather than `master` if you want reproducible runs.
 | `input_file`              | Path to the YAML config.         | `podcast_config.yaml` |
 | `output_file`             | Path for the generated feed.     | `podcast_feed.xml`    |
 | `skip_asset_verification` | Skip HEAD and `ffprobe` checks.  | `false`               |
+| `read_asset_metadata`     | Fill omitted episode fields from the asset's tags. | `false`     |
 | `dry_run`                 | Validate only, generate nothing. | `false`               |
 
 ## Docker
@@ -287,6 +333,7 @@ src/podcast_rss_generator/
     config.py      # reading the YAML file
     validation.py  # --dry-run's checks
     assets.py      # HTTP HEAD and ffprobe probing of episode assets
+    enrich.py      # filling omitted episode fields from the assets' own tags
     feed.py        # building the RSS document
 tests/             # pytest suite; helpers.py and conftest.py are shared
 ```
