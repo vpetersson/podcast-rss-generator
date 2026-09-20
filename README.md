@@ -315,15 +315,16 @@ There is nothing to infer from a version bump beyond when it shipped; read the
 release notes for what changed. Earlier releases used SemVer (`v0.2.1` and
 below), so any version from `2026.9.0` onwards is newer than any `0.x` tag.
 
-`podcast_rss_generator.__version__` is the single source of truth.
-`pyproject.toml` declares the version dynamic and hatchling reads it from
-there, so `podcast-rss-generator --version` and the package metadata cannot
-disagree.
+`pyproject.toml` is the single source of truth. Nothing in `src/` carries a
+version literal: `podcast_rss_generator.__version__` reads it back from the
+installed distribution's metadata, so `podcast-rss-generator --version`
+reports what is actually installed and there is no second copy to forget to
+bump. `tests/test_packaging.py` fails if a literal is reintroduced.
 
 To cut a release:
 
 ```bash
-# 1. bump __version__ in src/podcast_rss_generator/__init__.py
+# 1. bump `version` in pyproject.toml
 uv lock              # refreshes the version recorded in uv.lock
 uv run pytest
 git commit -am "Release 2026.9.0"

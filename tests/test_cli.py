@@ -1,7 +1,9 @@
-"""Tests for the command line entry point and for the version string."""
+"""Tests for the command line entry point.
 
-import re
-from importlib.metadata import PackageNotFoundError, version
+Where the version comes from is tested in test_packaging.py; here it is only
+the flag's behaviour that matters.
+"""
+
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -10,24 +12,6 @@ from helpers import CONFIG_FILE
 
 import podcast_rss_generator
 from podcast_rss_generator.cli import main
-
-# CalVer: YYYY.M.PATCH, with the month unpadded so the string matches what
-# PEP 440 normalises the package version to.
-CALVER_PATTERN = re.compile(r"^\d{4}\.(1[0-2]|[1-9])\.\d+$")
-
-
-def test_version_is_calver() -> None:
-    assert CALVER_PATTERN.match(podcast_rss_generator.__version__)
-
-
-def test_package_metadata_matches_module_version() -> None:
-    """hatchling reads __version__, so the two cannot drift — unless the
-    version was bumped without re-running `uv lock`."""
-    try:
-        installed = version("podcast-rss-generator")
-    except PackageNotFoundError:  # running against the source tree only
-        pytest.skip("package is not installed in this environment")
-    assert installed == podcast_rss_generator.__version__
 
 
 def test_version_flag_prints_version(

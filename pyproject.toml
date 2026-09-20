@@ -1,9 +1,9 @@
 [project]
 name = "podcast-rss-generator"
-# CalVer, YYYY.M.PATCH — see "Versioning" in README.md. The value lives in
-# podcast_rss_generator.__version__ so `--version` and the package metadata
-# cannot drift apart; [tool.hatch.version] below reads it from there.
-dynamic = ["version"]
+# CalVer, YYYY.M.PATCH — see "Versioning" in README.md. Declared here and
+# nowhere else; podcast_rss_generator.__version__ reads it back out of the
+# installed distribution's metadata, so `--version` cannot disagree with it.
+version = "2026.9.0"
 description = "Generate a podcast RSS feed from a YAML configuration file, with validation and asset verification."
 readme = "README.md"
 license = { text = "MIT" }
@@ -49,9 +49,6 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.hatch.version]
-path = "src/podcast_rss_generator/__init__.py"
 
 # src layout: nothing is importable from the repository root, so a test run
 # can only see the package that was actually installed. With a flat layout
