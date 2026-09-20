@@ -458,7 +458,7 @@ wheels = [
 
 [[package]]
 name = "podcast-rss-generator"
-version = "2026.9.0"
+version = "2026.9.1"
 source = { editable = "." }
 dependencies = [
     { name = "markdown" },

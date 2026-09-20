@@ -3,7 +3,7 @@ name = "podcast-rss-generator"
 # CalVer, YYYY.M.PATCH — see "Versioning" in README.md. Declared here and
 # nowhere else; podcast_rss_generator.__version__ reads it back out of the
 # installed distribution's metadata, so `--version` cannot disagree with it.
-version = "2026.9.0"
+version = "2026.9.1"
 description = "Generate a podcast RSS feed from a YAML configuration file, with validation and asset verification."
 readme = "README.md"
 license = { text = "MIT" }

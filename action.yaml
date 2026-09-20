@@ -18,6 +18,10 @@ inputs:
     description: 'Skip HTTP HEAD and ffprobe checks for asset URLs (useful for testing with fake URLs)'
     required: false
     default: 'false'
+  read_asset_metadata:
+    description: "Fill in episode fields the config omits from the asset's own ID3/container tags"
+    required: false
+    default: 'false'
   dry_run:
     description: 'Validate configuration file only without generating the RSS feed'
     required: false
@@ -28,6 +32,7 @@ runs:
   image: 'Dockerfile'
   env:
     INPUT_SKIP_ASSET_VERIFICATION: ${{ inputs.skip_asset_verification }}
+    INPUT_READ_ASSET_METADATA: ${{ inputs.read_asset_metadata }}
     INPUT_DRY_RUN: ${{ inputs.dry_run }}
   args:
     - "--input-file"

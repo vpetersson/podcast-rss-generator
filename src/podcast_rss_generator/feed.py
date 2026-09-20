@@ -3,6 +3,7 @@
 import re
 import uuid
 import xml.etree.ElementTree as ET
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from email.utils import format_datetime
 from typing import Any
@@ -110,8 +111,19 @@ def _restore_cdata(xml_text: str) -> str:
 
 
 def generate_rss(
-    config: Any, output_file_path: str, skip_asset_verification: bool = False
+    config: Any,
+    output_file_path: str,
+    skip_asset_verification: bool = False,
+    asset_info: Mapping[str, FileInfo] | None = None,
 ) -> None:
+    """
+    Write the feed for ``config`` to ``output_file_path``.
+
+    ``asset_info`` holds probe results already collected for an asset URL, so
+    that reading metadata off the assets beforehand does not mean probing
+    every one of them a second time here. Anything absent from it is probed
+    as usual.
+    """
     # --- Namespace Registration --- (Ensure podcast namespace is included)
     ET.register_namespace("itunes", "http://www.itunes.com/dtds/podcast-1.0.dtd")
     ET.register_namespace("atom", "http://www.w3.org/2005/Atom")
@@ -276,14 +288,18 @@ def generate_rss(
             )
             continue
 
-        if skip_asset_verification:
+        already_probed = (asset_info or {}).get(episode["asset_url"])
+        if already_probed is not None:
+            file_info: FileInfo = already_probed
+        elif skip_asset_verification:
             print(f"  Skipping asset verification for {episode['asset_url']}")
             # Provide default/placeholder values
-            file_info: FileInfo = {
+            file_info = {
                 "content-length": "0",  # Required by enclosure
                 "content-type": "application/octet-stream",  # Generic fallback type
                 "duration": None,
                 "content_hash": None,
+                "tags": {},
             }
         else:
             file_info = get_file_info(episode["asset_url"])

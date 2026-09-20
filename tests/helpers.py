@@ -4,6 +4,7 @@ Kept out of ``conftest.py`` so the test modules can import them explicitly;
 ``conftest.py`` holds fixtures only.
 """
 
+import json
 import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from pathlib import Path
@@ -24,16 +25,36 @@ NS = {
 #: Metadata keys that were renamed; the old spelling is still accepted.
 RENAMED_METADATA_KEYS = ("email", "author", "category", "explicit")
 
-#: Trimmed ffprobe output. Only the duration is ever read back out of it.
-MOCK_FFPROBE_OUTPUT = """streams.stream.0.index=0
-streams.stream.0.codec_name="aac"
-streams.stream.0.codec_type="audio"
-streams.stream.0.sample_rate="44100"
-streams.stream.0.channels=2
-streams.stream.0.duration_ts=156170240
-streams.stream.0.duration="3541.275283"
-streams.stream.0.bit_rate="107301"
-streams.stream.0.disposition.default=1"""
+#: Trimmed ffprobe output, in the JSON the probe now asks for. The duration
+#: and the container tags are the only parts read back out of it.
+MOCK_FFPROBE_OUTPUT = json.dumps(
+    {
+        "streams": [
+            {
+                "index": 0,
+                "codec_name": "aac",
+                "codec_type": "audio",
+                "sample_rate": "44100",
+                "channels": 2,
+                "duration": "3541.275283",
+                "bit_rate": "107301",
+            }
+        ],
+        "format": {
+            "format_name": "mp3",
+            "duration": "3541.275283",
+            "size": "12345678",
+        },
+    }
+)
+
+
+def probe_output(**tags: str) -> str:
+    """``MOCK_FFPROBE_OUTPUT`` with container tags attached."""
+    parsed = json.loads(MOCK_FFPROBE_OUTPUT)
+    parsed["format"]["tags"] = dict(tags)
+    return json.dumps(parsed)
+
 
 DEFAULT_ASSET_HEADERS = {
     "content-length": "12345678",

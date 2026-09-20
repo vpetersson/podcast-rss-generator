@@ -49,6 +49,42 @@ def is_valid_iso_date(date_string: object) -> bool:
         return False
 
 
+def validate_asset_references(config: Any) -> tuple[bool, list[str]]:
+    """
+    Check only what has to hold before the assets can be probed.
+
+    ``validate_config`` requires a title, a description and a publication date
+    on every episode, so it cannot run before metadata is read off the assets
+    — the whole point of that pass is to supply some of those fields. This is
+    the subset that reading them depends on: a list of episodes, each with a
+    usable asset URL. Everything else is still reported by the full pass once
+    the episodes have been resolved.
+    """
+    errors = []
+
+    if not isinstance(config, dict):
+        return False, ["Config must be a dictionary"]
+
+    episodes = config.get("episodes")
+    if episodes is None:
+        return False, ["Missing required 'episodes' section"]
+
+    if not isinstance(episodes, list):
+        return False, ["Episodes section must be a list"]
+
+    for i, episode in enumerate(episodes):
+        if not isinstance(episode, dict):
+            errors.append(f"Episode {i + 1} must be a dictionary")
+        elif "asset_url" not in episode:
+            errors.append(f"Episode {i + 1}: Missing required field 'asset_url'")
+        elif not is_valid_url(episode["asset_url"]):
+            errors.append(
+                f"Episode {i + 1}: Invalid asset_url format '{episode['asset_url']}'"
+            )
+
+    return len(errors) == 0, errors
+
+
 def validate_config(config: Any) -> tuple[bool, list[str]]:
     """
     Validate the podcast configuration file.
