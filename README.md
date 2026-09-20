@@ -1,6 +1,6 @@
 # Podcast RSS Generator
 
-[![Python Unit Tests and Linting](https://github.com/vpetersson/podcast-rss-generator/actions/workflows/python-tests.yml/badge.svg)](https://github.com/vpetersson/podcast-rss-generator/actions/workflows/python-tests.yml)
+[![Tests](https://github.com/vpetersson/podcast-rss-generator/actions/workflows/python-tests.yml/badge.svg)](https://github.com/vpetersson/podcast-rss-generator/actions/workflows/python-tests.yml)
 
 Generates an RSS feed for an audio or video podcast from a YAML file.
 
@@ -47,8 +47,8 @@ uv sync
 ```
 
 `uv` reads `.python-version` and installs the right interpreter itself, so
-there is no virtualenv to create. `uv sync` installs the dev tools (`ruff`,
-`mypy`, `yamllint`) as well; use `uv sync --no-dev` for runtime only.
+there is no virtualenv to create. `uv sync` installs the dev tools (`pytest`,
+`ruff`, `mypy`, `yamllint`) as well; use `uv sync --no-dev` for runtime only.
 
 If `ffmpeg` is missing, the generator says so and omits episode duration rather
 than failing. It is not needed at all for `--dry-run` or
@@ -57,11 +57,13 @@ than failing. It is not needed at all for `--dry-run` or
 ## Usage
 
 ```
-usage: rss_generator.py [-h] [--input-file INPUT_FILE] [--output-file OUTPUT_FILE]
+usage: rss_generator.py [-h] [--version] [--input-file INPUT_FILE]
+                        [--output-file OUTPUT_FILE]
                         [--skip-asset-verification] [--dry-run]
 
 options:
   -h, --help                 show this help message and exit
+  --version                  show the version and exit
   --input-file INPUT_FILE    Input YAML file (default: podcast_config.yaml)
   --output-file OUTPUT_FILE  Output XML file (default: podcast_feed.xml)
   --skip-asset-verification  Skip HTTP HEAD and ffprobe checks for asset URLs
@@ -232,15 +234,57 @@ The checks CI runs:
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy
-uv run python -m unittest discover tests
+uv run pytest
 ```
 
-`rss_generator.py` is type-checked under mypy's `strict` mode. The test suite is
-checked too, with two allowances documented in `pyproject.toml`.
+Tests use [pytest](https://docs.pytest.org/). A few things worth knowing before
+adding one:
+
+- `uv run pytest --cov` prints a coverage report; CI fails below 85%.
+- `uv run pytest -k transcript` runs a subset, `-x` stops at the first failure.
+- Fixtures live in `tests/conftest.py`, helpers in `tests/helpers.py`. The
+  `feed` fixture yields the example feed twice — once built from the current
+  metadata keys and once from the legacy `itunes_*` ones — so a structural
+  assertion covers both spellings without being written twice.
+- Nothing in the suite touches the network or needs `ffmpeg`; HTTP HEAD and
+  `ffprobe` are stubbed. Generated feeds are written to pytest's `tmp_path`,
+  never into the working tree.
+
+`rss_generator.py` and the test suite are both type-checked under mypy's
+`strict` mode.
 
 Dependencies are pinned in `uv.lock`. After changing `pyproject.toml`, run
 `uv lock` and commit the result — CI installs with `--frozen` and fails if the
 lockfile is out of step.
+
+## Versioning
+
+This project uses [CalVer](https://calver.org/), `YYYY.M.PATCH`:
+
+- `YYYY` — four-digit year
+- `M` — month, not zero-padded, so the string matches what PEP 440 normalises
+  a Python package version to
+- `PATCH` — starts at `0` and increments for each further release in the same
+  month
+
+There is nothing to infer from a version bump beyond when it shipped; read the
+release notes for what changed. Earlier releases used SemVer (`v0.2.1` and
+below), so any version from `2026.9.0` onwards is newer than any `0.x` tag.
+
+`rss_generator.__version__` is the single source of truth. `pyproject.toml`
+declares the version dynamic and hatchling reads it from there, so
+`rss_generator.py --version` and the package metadata cannot disagree.
+
+To cut a release:
+
+```bash
+# 1. bump __version__ in rss_generator.py
+uv lock              # refreshes the version recorded in uv.lock
+uv run pytest
+git commit -am "Release 2026.9.0"
+git tag v2026.9.0
+git push --follow-tags
+```
 
 ## Contributing
 

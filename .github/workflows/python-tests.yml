@@ -1,5 +1,5 @@
 ---
-name: Python Unit Tests and Linting
+name: Tests
 
 on:
   push:
@@ -10,9 +10,9 @@ on:
       - master
 
 jobs:
-  build:
+  lint:
+    name: Lint and type-check
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v7
 
@@ -33,9 +33,6 @@ jobs:
         # than quietly resolving something different from what was committed.
         run: uv sync --frozen
 
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
       - name: Lint with ruff
         run: uv run ruff check .
 
@@ -49,6 +46,51 @@ jobs:
         run: >
           uv run yamllint -fgithub -d "{rules: {line-length: false}}"
           podcast_config.example.yaml
+
+  test:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor is requires-python; the ceiling is the newest release the
+        # dependencies support. Anything in between is what users actually run.
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run tests
+        # The suite stubs every HTTP call and every ffprobe invocation, so it
+        # needs neither the network nor ffmpeg installed.
+        run: uv run pytest --cov --cov-report=term-missing
+
+  feed:
+    name: Generate the example feed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --frozen --no-dev
 
       - name: Generate Feed from Example
         run: >
@@ -66,9 +108,6 @@ jobs:
       - name: Validate Feed XML with xq
         run: xq . podcast_feed.xml
 
-      - name: Run tests
-        run: uv run python -m unittest discover tests
-
       - name: Upload Test Feed Artifact
         uses: actions/upload-artifact@v7
         with:
@@ -76,6 +115,7 @@ jobs:
           path: podcast_feed.xml
 
   docker:
+    name: Build and run the action image
     # The action ships as a Docker action, so a broken Dockerfile breaks every
     # consumer. Nothing verified it built before.
     runs-on: ubuntu-latest
@@ -84,6 +124,9 @@ jobs:
 
       - name: Build the action image
         run: docker build -t podcast-rss-generator:ci .
+
+      - name: Report the version the image reports
+        run: docker run --rm podcast-rss-generator:ci --version
 
       - name: Generate a feed through the image
         run: >

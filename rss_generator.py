@@ -15,6 +15,11 @@ import markdown
 import requests
 import yaml
 
+# CalVer, YYYY.M.PATCH. This is the single source of truth for the version:
+# hatchling reads it from here (see [tool.hatch.version] in pyproject.toml),
+# so the package metadata and `--version` can never disagree.
+__version__ = "2026.9.0"
+
 # How long to wait on the HEAD request for an asset. Without this, a hung
 # server stalls the whole feed build indefinitely.
 HTTP_TIMEOUT_SECONDS = 30
@@ -396,11 +401,10 @@ def validate_config(config: Any) -> tuple[bool, list[str]]:
     # Validate URLs
     url_fields = ["link", "rss_feed_url", "image"]
     for field in url_fields:
-        if field in metadata and metadata[field]:
-            if not is_valid_url(metadata[field]):
-                errors.append(
-                    f"Invalid URL format in metadata field '{field}': '{metadata[field]}'"
-                )
+        if metadata.get(field) and not is_valid_url(metadata[field]):
+            errors.append(
+                f"Invalid URL format in metadata field '{field}': '{metadata[field]}'"
+            )
 
     # Validate boolean fields
     boolean_fields = ["explicit", "itunes_explicit", "use_asset_hash_as_guid"]
@@ -443,48 +447,49 @@ def validate_config(config: Any) -> tuple[bool, list[str]]:
                 )
 
         # Validate publication date
-        if "publication_date" in episode:
-            if not is_valid_iso_date(episode["publication_date"]):
-                errors.append(
-                    f"Episode {i + 1}: Invalid publication_date format '{episode['publication_date']}' (must be ISO format like '2023-01-15T10:00:00Z')"
-                )
+        if "publication_date" in episode and not is_valid_iso_date(
+            episode["publication_date"]
+        ):
+            errors.append(
+                f"Episode {i + 1}: Invalid publication_date format '{episode['publication_date']}' (must be ISO format like '2023-01-15T10:00:00Z')"
+            )
 
         # Validate asset_url
-        if "asset_url" in episode:
-            if not is_valid_url(episode["asset_url"]):
-                errors.append(
-                    f"Episode {i + 1}: Invalid asset_url format '{episode['asset_url']}'"
-                )
+        if "asset_url" in episode and not is_valid_url(episode["asset_url"]):
+            errors.append(
+                f"Episode {i + 1}: Invalid asset_url format '{episode['asset_url']}'"
+            )
 
         # Validate optional URL fields
         episode_url_fields = ["link", "image"]
         for field in episode_url_fields:
-            if field in episode and episode[field]:
-                if not is_valid_url(episode[field]):
-                    errors.append(
-                        f"Episode {i + 1}: Invalid URL format in field '{field}': '{episode[field]}'"
-                    )
+            if episode.get(field) and not is_valid_url(episode[field]):
+                errors.append(
+                    f"Episode {i + 1}: Invalid URL format in field '{field}': '{episode[field]}'"
+                )
 
         # Validate episode number
-        if "episode" in episode:
-            if not isinstance(episode["episode"], int) or episode["episode"] < 1:
-                errors.append(
-                    f"Episode {i + 1}: Field 'episode' must be a positive integer"
-                )
+        if "episode" in episode and (
+            not isinstance(episode["episode"], int) or episode["episode"] < 1
+        ):
+            errors.append(
+                f"Episode {i + 1}: Field 'episode' must be a positive integer"
+            )
 
         # Validate season number
-        if "season" in episode:
-            if not isinstance(episode["season"], int) or episode["season"] < 1:
-                errors.append(
-                    f"Episode {i + 1}: Field 'season' must be a positive integer"
-                )
+        if "season" in episode and (
+            not isinstance(episode["season"], int) or episode["season"] < 1
+        ):
+            errors.append(f"Episode {i + 1}: Field 'season' must be a positive integer")
 
         # Validate episode type
-        if "episode_type" in episode:
-            if episode["episode_type"] not in valid_episode_types:
-                errors.append(
-                    f"Episode {i + 1}: Invalid episode_type '{episode['episode_type']}' (must be one of: {', '.join(valid_episode_types)})"
-                )
+        if (
+            "episode_type" in episode
+            and episode["episode_type"] not in valid_episode_types
+        ):
+            errors.append(
+                f"Episode {i + 1}: Invalid episode_type '{episode['episode_type']}' (must be one of: {', '.join(valid_episode_types)})"
+            )
 
         # Validate boolean fields
         episode_boolean_fields = ["explicit", "itunes_explicit"]
@@ -811,8 +816,15 @@ def generate_rss(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Process some parameters.")
+    parser = argparse.ArgumentParser(
+        description="Generate a podcast RSS feed from a YAML configuration file."
+    )
 
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
     parser.add_argument(
         "--input-file", type=str, default="podcast_config.yaml", help="Input YAML file"
     )

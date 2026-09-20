@@ -1,6 +1,9 @@
 [project]
 name = "podcast-rss-generator"
-version = "1.0.0"
+# CalVer, YYYY.M.PATCH — see "Versioning" in README.md. The value lives in
+# rss_generator.__version__ so `--version` and the package metadata cannot
+# drift apart; [tool.hatch.version] below reads it from there.
+dynamic = ["version"]
 description = "Generate a podcast RSS feed from a YAML configuration file, with validation and asset verification."
 readme = "README.md"
 license = { text = "MIT" }
@@ -34,6 +37,8 @@ podcast-rss-generator = "rss_generator:main"
 # Tooling, not shipped in the Docker image. `uv sync --no-dev` skips these.
 dev = [
     "mypy>=2.3.1",
+    "pytest>=8.3.0",
+    "pytest-cov>=6.0.0",
     "ruff>=0.16.7",
     "types-Markdown>=3.5",
     "types-PyYAML>=6.0",
@@ -44,6 +49,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "rss_generator.py"
 
 [tool.hatch.build.targets.wheel]
 only-include = ["rss_generator.py"]
@@ -60,31 +68,51 @@ target-version = "py311"
 # E501 is deliberately absent: `ruff format` owns line layout, and it cannot
 # split long string literals, so enabling E501 only produces noise the
 # formatter will not resolve.
-select = ["E4", "E7", "E9", "F", "B", "I", "C4", "UP"]
+# Added with the pytest migration: PT keeps the suite idiomatic (bare
+# asserts, well-formed parametrize/fixture usage), SIM and RUF catch the
+# usual redundant constructs.
+select = ["E4", "E7", "E9", "F", "B", "I", "C4", "UP", "PT", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# The regression tests document behaviour of private helpers (_CDATA_OPEN and
+# friends), which is the point of them.
+"tests/*" = ["SLF001"]
 
 [tool.mypy]
 python_version = "3.11"
 files = ["rss_generator.py", "tests"]
 
-# Strict enough to have caught the bugs this refactor fixes, without
-# demanding annotations on the existing test suite in one go.
+# The test suite is held to the same bar as the module: every test is
+# annotated, and `element()` in tests/helpers.py narrows the Optional that
+# Element.find returns, so no per-module relaxations are needed.
 strict = true
 warn_unreachable = true
 warn_return_any = true
 disallow_untyped_defs = true
 no_implicit_optional = true
 
-[[tool.mypy.overrides]]
-# rss_generator.py itself is checked strictly. The test suite is checked too,
-# but with two allowances:
-#
-#   union-attr    31 of the 33 findings are `channel.find(...)` returning
-#                 Optional[Element] inside an assertion. A None there fails the
-#                 test on the next line regardless, so requiring a guard at every
-#                 call site adds noise without catching anything.
-#   untyped-defs  the 24 test methods are not annotated yet.
-#
-# Both are worth revisiting; neither is worth blocking this refactor on.
-module = ["test_rss_generator"]
-disallow_untyped_defs = false
-disable_error_code = ["union-attr", "arg-type", "var-annotated", "assignment", "no-untyped-call"]
+[tool.pytest.ini_options]
+# `.` on the path so `import rss_generator` works without the project being
+# installed (e.g. `uv run --no-project pytest`); `tests` so the helpers module
+# is importable from the test modules.
+pythonpath = [".", "tests"]
+testpaths = ["tests"]
+addopts = [
+    # -ra prints a reason for every non-passing test; the two --strict flags
+    # turn an unknown marker or a typo in this table into an error rather than
+    # a warning that nobody reads.
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["rss_generator"]
+
+[tool.coverage.report]
+exclude_also = ['if __name__ == "__main__":']
+# A floor, not a target: it fails a change that drops coverage sharply
+# without demanding a test for every error branch.
+fail_under = 85
+show_missing = true
