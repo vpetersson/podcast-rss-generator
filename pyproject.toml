@@ -42,7 +42,7 @@ dev = [
     "ruff>=0.16.10",
     "types-Markdown>=3.5",
     "types-PyYAML>=6.0",
-    "types-requests>=2.33.0.20260906",
+    "types-requests>=2.33.0.20261006",
     "yamllint>=1.33.0",
 ]
 
