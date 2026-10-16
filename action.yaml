@@ -28,14 +28,55 @@ inputs:
     default: 'false'
 
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
-  env:
-    INPUT_SKIP_ASSET_VERIFICATION: ${{ inputs.skip_asset_verification }}
-    INPUT_READ_ASSET_METADATA: ${{ inputs.read_asset_metadata }}
-    INPUT_DRY_RUN: ${{ inputs.dry_run }}
-  args:
-    - "--input-file"
-    - ${{ inputs.input_file }}
-    - "--output-file"
-    - ${{ inputs.output_file }}
+  # A composite action rather than `using: docker`, because a Docker action's
+  # image is a literal: it cannot follow the ref the caller pinned. Here the
+  # image tag is derived from that ref, so @master runs the image built from
+  # master, @v2026.9.1 the one built from that tag, and @<sha> the one built
+  # from that commit — all published by .github/workflows/publish-image.yml.
+  using: 'composite'
+  steps:
+    - name: Run podcast-rss-generator
+      shell: bash
+      env:
+        IMAGE: ghcr.io/vpetersson/podcast-rss-generator
+        ACTION_REF: ${{ github.action_ref }}
+        INPUT_FILE: ${{ inputs.input_file }}
+        OUTPUT_FILE: ${{ inputs.output_file }}
+        INPUT_SKIP_ASSET_VERIFICATION: ${{ inputs.skip_asset_verification }}
+        INPUT_READ_ASSET_METADATA: ${{ inputs.read_asset_metadata }}
+        INPUT_DRY_RUN: ${{ inputs.dry_run }}
+      run: |
+        set -euo pipefail
+
+        # Full commit SHAs are published as sha-<sha>; branch and tag names
+        # as themselves. Anything else that is a valid tag is tried as-is.
+        if [[ "$ACTION_REF" =~ ^[0-9a-f]{40}$ ]]; then
+          tag="sha-${ACTION_REF}"
+        else
+          tag="$ACTION_REF"
+        fi
+
+        # No published image for this ref — a local `uses: ./`, a feature
+        # branch, or a commit pushed seconds ago — so build the Dockerfile
+        # that sits next to this action.yaml instead of failing.
+        if [[ "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] \
+            && docker pull --quiet "${IMAGE}:${tag}"; then
+          image="${IMAGE}:${tag}"
+        else
+          echo "::notice::No published image for ref '${ACTION_REF}', building from the Dockerfile"
+          image="podcast-rss-generator:local"
+          docker build --quiet -t "$image" "$GITHUB_ACTION_PATH"
+        fi
+
+        # The workspace is mounted at the image's WORKDIR, so input and
+        # output paths resolve relative to it, as they did before. Running
+        # as the runner's user keeps the generated feed owned by it.
+        docker run --rm \
+          --user "$(id -u):$(id -g)" \
+          -v "${GITHUB_WORKSPACE}:/data" \
+          -e INPUT_SKIP_ASSET_VERIFICATION \
+          -e INPUT_READ_ASSET_METADATA \
+          -e INPUT_DRY_RUN \
+          "$image" \
+          --input-file "$INPUT_FILE" \
+          --output-file "$OUTPUT_FILE"
