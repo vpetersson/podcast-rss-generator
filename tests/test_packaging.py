@@ -13,6 +13,7 @@ from importlib.metadata import distribution, entry_points, metadata
 from pathlib import Path
 
 import pytest
+import yaml
 from helpers import REPO_ROOT
 
 import podcast_rss_generator
@@ -120,4 +121,17 @@ def test_module_invocation_reports_the_version() -> None:
     )
     assert result.stdout.strip() == (
         f"podcast-rss-generator {podcast_rss_generator.__version__}"
+    )
+
+
+def test_the_action_runs_the_image_published_for_this_version() -> None:
+    """action.yaml pulls a prebuilt image from GHCR, tagged with the version
+    the publish workflow builds from pyproject.toml. Bumping one without the
+    other would ship an action that runs the previous release, or one whose
+    image was never pushed.
+    """
+    action = yaml.safe_load((REPO_ROOT / "action.yaml").read_text(encoding="utf-8"))
+    assert action["runs"]["using"] == "docker"
+    assert action["runs"]["image"] == (
+        f"docker://ghcr.io/vpetersson/podcast-rss-generator:{declared_version()}"
     )

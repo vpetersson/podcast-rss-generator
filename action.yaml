@@ -29,7 +29,11 @@ inputs:
 
 runs:
   using: 'docker'
-  image: 'Dockerfile'
+  # Pulled from GHCR rather than built from the Dockerfile on every run. The
+  # tag is the version in pyproject.toml, published by
+  # .github/workflows/publish-image.yml when that version is tagged;
+  # tests/test_packaging.py fails if the two drift apart.
+  image: 'docker://ghcr.io/vpetersson/podcast-rss-generator:2026.9.1'
   env:
     INPUT_SKIP_ASSET_VERIFICATION: ${{ inputs.skip_asset_verification }}
     INPUT_READ_ASSET_METADATA: ${{ inputs.read_asset_metadata }}

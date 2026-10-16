@@ -154,8 +154,9 @@ jobs:
 
   docker:
     name: Build and run the action image
-    # The action ships as a Docker action, so a broken Dockerfile breaks every
-    # consumer. Nothing verified it built before.
+    # The action runs the image publish-image.yml builds from this Dockerfile
+    # at release time, so a broken Dockerfile has to be caught here, on the
+    # PR, rather than when a release fails to publish.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

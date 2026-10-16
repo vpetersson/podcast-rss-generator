@@ -151,8 +151,9 @@ tag-supplied field as missing, so it needs network access and `ffmpeg`. For
 the same reason `--read-asset-metadata` cannot be combined with
 `--skip-asset-verification`, which exists to avoid exactly that.
 
-Copy the resulting `podcast_feed.xml` to your bucket with `s3cmd`, `aws` or
-`mc`. You can check the result with [Podbase](https://podba.se/validate/).
+Copy the resulting `podcast_feed.xml` to your bucket with any S3-compatible
+client — `aws s3 cp`, `rclone` or `s5cmd` all work against S3, GCS and R2. You
+can check the result with [Podbase](https://podba.se/validate/).
 
 ## Configuration
 
@@ -195,7 +196,9 @@ Episode duration is not configured. It is read from the asset with `ffprobe`.
 
 ## GitHub Actions
 
-This repository ships as a Docker action.
+This repository ships as a Docker action. It runs a prebuilt image from
+`ghcr.io/vpetersson/podcast-rss-generator` rather than building the Dockerfile
+on your runner, so a run starts in seconds instead of installing ffmpeg first.
 
 ```yaml
 name: Generate Podcast RSS Feed
@@ -231,23 +234,31 @@ jobs:
         with:
           name: podcast_feed.xml
 
-      - name: Install mc
-        run: |
-          wget -q https://dl.min.io/client/mc/release/linux-amd64/mc
-          chmod +x mc
-
-      - name: Set up mc
-        env:
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
-          R2_KEY_SECRET: ${{ secrets.R2_KEY_SECRET }}
-        run: ./mc alias set r2-storage ${R2_ENDPOINT} ${R2_KEY_ID} ${R2_KEY_SECRET}
-
       - name: Copy file
-        run: ./mc cp podcast_feed.xml r2-storage/${R2_BUCKET}/
+        # The AWS CLI is preinstalled on GitHub's hosted runners, so there is
+        # nothing to download. R2 takes the endpoint URL and region "auto",
+        # and the two checksum settings stop the CLI sending the default
+        # checksums R2 does not accept. For AWS S3 itself, drop all three and
+        # --endpoint-url.
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_KEY_SECRET }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: >
+          aws s3 cp podcast_feed.xml "s3://${R2_BUCKET}/podcast_feed.xml"
+          --endpoint-url "${R2_ENDPOINT}"
+          --content-type application/rss+xml
 ```
 
-Pin to a release tag rather than `master` if you want reproducible runs.
+`R2_ENDPOINT` is the full S3 API URL,
+`https://<account-id>.r2.cloudflarestorage.com`.
+
+Pin to a release tag rather than `master` if you want reproducible runs. Each
+ref's `action.yaml` names the image of the release it belongs to, so `@master`
+runs the latest *release*, not unreleased commits on master.
 
 ### Action inputs
 
@@ -260,6 +271,14 @@ Pin to a release tag rather than `master` if you want reproducible runs.
 | `dry_run`                 | Validate only, generate nothing. | `false`               |
 
 ## Docker
+
+Released images are on GHCR, for `linux/amd64` and `linux/arm64`:
+
+```bash
+docker pull ghcr.io/vpetersson/podcast-rss-generator:latest
+```
+
+Or build your own:
 
 ```bash
 docker build -t podcast-rss-generator:latest .
@@ -374,10 +393,18 @@ To cut a release:
 # 1. bump `version` in pyproject.toml
 uv lock              # refreshes the version recorded in uv.lock
 uv run pytest
+# 2. set the same version in the image tag in action.yaml
 git commit -am "Release 2026.9.0"
 git tag v2026.9.0
 git push --follow-tags
 ```
+
+Pushing the tag runs `.github/workflows/publish-image.yml`, which builds the
+image and pushes it to GHCR as `2026.9.0` and `latest`. It refuses to publish
+if the tag, `pyproject.toml` and `action.yaml` disagree, and
+`tests/test_packaging.py` catches an `action.yaml` left behind on the PR.
+Until that workflow finishes, the action at the new version has no image to
+pull, so wait for it before announcing a release.
 
 ## Contributing
 
