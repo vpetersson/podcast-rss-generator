@@ -2,15 +2,16 @@
 name: Publish image
 
 # The action runs a prebuilt image from GHCR rather than building the
-# Dockerfile on every consumer's runner. This workflow is what puts that image
-# there: one build per release, tagged with the version action.yaml pins.
+# Dockerfile on every consumer's runner. action.yaml picks the image tag from
+# the ref the caller pinned, so this publishes one image per ref a caller can
+# pin: master, each v* release tag, and each commit on master by its SHA.
 #
-# workflow_dispatch exists to (re)publish the version a ref declares without
-# cutting a new tag, e.g. to backfill an image for a release that predates
-# this workflow.
+# workflow_dispatch republishes a ref by hand, e.g. if a run failed.
 
 on:
   push:
+    branches:
+      - master
     tags:
       - "v*"
   workflow_dispatch:
@@ -18,6 +19,13 @@ on:
 permissions:
   contents: read
   packages: write
+
+# master's image is a moving tag: if two pushes overlap, the newer one must
+# win. A cancelled run leaves its commit without a sha- image, which the
+# action handles by building that commit's Dockerfile.
+concurrency:
+  group: publish-image-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
@@ -45,15 +53,6 @@ jobs:
             exit 1
           fi
 
-      - name: Check action.yaml pins this version
-        # Otherwise the release would publish an image the action at this ref
-        # never pulls. tests/test_packaging.py enforces the same thing on PRs.
-        run: |
-          grep -qF "docker://${IMAGE}:${{ steps.version.outputs.version }}'" action.yaml || {
-            echo "::error::action.yaml does not reference ${IMAGE}:${{ steps.version.outputs.version }}"
-            exit 1
-          }
-
       - uses: docker/setup-qemu-action@v4
 
       - uses: docker/setup-buildx-action@v4
@@ -69,10 +68,15 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE }}
-          # The bare version is what action.yaml pins. latest is for people
-          # running the image by hand and only moves on a tagged release.
+          # The first three are what action.yaml derives from the caller's
+          # ref: the branch or tag name verbatim, and sha-<full sha> for a
+          # pinned commit. The bare version and latest are for people running
+          # the image by hand, and only move on a release tag.
           tags: |
-            type=raw,value=${{ steps.version.outputs.version }}
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,format=long
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ github.ref_type == 'tag' }}
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
 
       - name: Build and push
@@ -89,5 +93,4 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Smoke-test the published image
-        run: |
-          docker run --rm "${IMAGE}:${{ steps.version.outputs.version }}" --version
+        run: docker run --rm "${IMAGE}:sha-${GITHUB_SHA}" --version

@@ -124,14 +124,17 @@ def test_module_invocation_reports_the_version() -> None:
     )
 
 
-def test_the_action_runs_the_image_published_for_this_version() -> None:
-    """action.yaml pulls a prebuilt image from GHCR, tagged with the version
-    the publish workflow builds from pyproject.toml. Bumping one without the
-    other would ship an action that runs the previous release, or one whose
-    image was never pushed.
+def test_the_action_forwards_every_input_to_the_container() -> None:
+    """action.yaml is a composite action that runs the image itself, so an
+    input it declares but never passes through is silently ignored rather
+    than rejected.
     """
     action = yaml.safe_load((REPO_ROOT / "action.yaml").read_text(encoding="utf-8"))
-    assert action["runs"]["using"] == "docker"
-    assert action["runs"]["image"] == (
-        f"docker://ghcr.io/vpetersson/podcast-rss-generator:{declared_version()}"
-    )
+    assert action["runs"]["using"] == "composite"
+    (step,) = action["runs"]["steps"]
+    forwarded = {
+        value.removeprefix("${{ inputs.").removesuffix(" }}")
+        for value in step["env"].values()
+        if value.startswith("${{ inputs.")
+    }
+    assert forwarded == set(action["inputs"])

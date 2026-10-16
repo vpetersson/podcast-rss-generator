@@ -155,8 +155,8 @@ jobs:
   docker:
     name: Build and run the action image
     # The action runs the image publish-image.yml builds from this Dockerfile
-    # at release time, so a broken Dockerfile has to be caught here, on the
-    # PR, rather than when a release fails to publish.
+    # on every push to master, so a broken Dockerfile has to be caught here,
+    # on the PR, rather than when publishing fails.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -177,3 +177,21 @@ jobs:
 
       - name: Confirm the image produced parseable XML
         run: python -c "import xml.etree.ElementTree as ET; ET.parse('docker_feed.xml')"
+
+  action:
+    name: Run the action itself
+    # A local `uses: ./` has no ref to map to a published image, so this
+    # exercises the build-from-Dockerfile fallback plus the input plumbing.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Generate a feed through the action
+        uses: ./
+        with:
+          input_file: podcast_config.example.yaml
+          output_file: action_feed.xml
+          skip_asset_verification: 'true'
+
+      - name: Confirm the action produced parseable XML
+        run: python -c "import xml.etree.ElementTree as ET; ET.parse('action_feed.xml')"

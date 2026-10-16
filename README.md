@@ -196,9 +196,15 @@ Episode duration is not configured. It is read from the asset with `ffprobe`.
 
 ## GitHub Actions
 
-This repository ships as a Docker action. It runs a prebuilt image from
+The action runs a prebuilt image from
 `ghcr.io/vpetersson/podcast-rss-generator` rather than building the Dockerfile
 on your runner, so a run starts in seconds instead of installing ffmpeg first.
+It picks the image matching the ref you pin: `@master` runs the image built
+from master, `@v2026.9.1` the one built from that release, and a full commit
+SHA the one built from that commit. For a ref with no published image, such as
+a fork's branch, it builds the Dockerfile instead.
+
+It needs Docker on the runner, which GitHub's Linux runners have.
 
 ```yaml
 name: Generate Podcast RSS Feed
@@ -256,9 +262,8 @@ jobs:
 `R2_ENDPOINT` is the full S3 API URL,
 `https://<account-id>.r2.cloudflarestorage.com`.
 
-Pin to a release tag rather than `master` if you want reproducible runs. Each
-ref's `action.yaml` names the image of the release it belongs to, so `@master`
-runs the latest *release*, not unreleased commits on master.
+Pin to a release tag or a commit SHA rather than `master` if you want
+reproducible runs.
 
 ### Action inputs
 
@@ -393,18 +398,15 @@ To cut a release:
 # 1. bump `version` in pyproject.toml
 uv lock              # refreshes the version recorded in uv.lock
 uv run pytest
-# 2. set the same version in the image tag in action.yaml
 git commit -am "Release 2026.9.0"
 git tag v2026.9.0
 git push --follow-tags
 ```
 
-Pushing the tag runs `.github/workflows/publish-image.yml`, which builds the
-image and pushes it to GHCR as `2026.9.0` and `latest`. It refuses to publish
-if the tag, `pyproject.toml` and `action.yaml` disagree, and
-`tests/test_packaging.py` catches an `action.yaml` left behind on the PR.
-Until that workflow finishes, the action at the new version has no image to
-pull, so wait for it before announcing a release.
+Pushing the tag runs `.github/workflows/publish-image.yml`, which pushes the
+image to GHCR as `v2026.9.0` (what `@v2026.9.0` pulls), `2026.9.0` and
+`latest`. It refuses to publish if the tag and `pyproject.toml` disagree. The
+same workflow publishes `master` and `sha-<commit>` on every push to master.
 
 ## Contributing
 
