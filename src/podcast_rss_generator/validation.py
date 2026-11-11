@@ -214,8 +214,11 @@ def validate_config(config: Any) -> tuple[bool, list[str]]:
                 )
 
         # Validate episode number
+        # (bool is a subclass of int, so True/False must be excluded explicitly)
         if "episode" in episode and (
-            not isinstance(episode["episode"], int) or episode["episode"] < 1
+            isinstance(episode["episode"], bool)
+            or not isinstance(episode["episode"], int)
+            or episode["episode"] < 1
         ):
             errors.append(
                 f"Episode {i + 1}: Field 'episode' must be a positive integer"
@@ -223,7 +226,9 @@ def validate_config(config: Any) -> tuple[bool, list[str]]:
 
         # Validate season number
         if "season" in episode and (
-            not isinstance(episode["season"], int) or episode["season"] < 1
+            isinstance(episode["season"], bool)
+            or not isinstance(episode["season"], int)
+            or episode["season"] < 1
         ):
             errors.append(f"Episode {i + 1}: Field 'season' must be a positive integer")
 
