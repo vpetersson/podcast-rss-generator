@@ -191,3 +191,17 @@ def test_non_string_fields_are_reported_not_raised(
 
     assert not is_valid
     assert any("email" in error for error in errors)
+
+
+def test_boolean_episode_and_season_numbers_are_reported(
+    valid_config: dict[str, Any],
+) -> None:
+    """`episode: true` is a bool, not a positive integer, and must be rejected."""
+    valid_config["episodes"][0]["episode"] = True
+    valid_config["episodes"][0]["season"] = True
+
+    is_valid, errors = validate_config(valid_config)
+
+    assert not is_valid
+    assert any("'episode' must be a positive integer" in error for error in errors)
+    assert any("'season' must be a positive integer" in error for error in errors)
